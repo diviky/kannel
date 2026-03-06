@@ -96,6 +96,7 @@ Octstr *sqlbox_id;
 
 #define SLEEP_BETWEEN_EMPTY_SELECTS 1.0
 #define DEFAULT_LIMIT_PER_CYCLE 10
+#define BEARERBOX_CONNECT_RETRY_INTERVAL 5.0
 
 typedef struct _boxc {
     Connection    *smsbox_connection;
@@ -143,6 +144,27 @@ static int sqlbox_is_allowed_in_group(Octstr *group, Octstr *variable)
 #undef OCTSTR
 #undef SINGLE_GROUP
 #undef MULTI_GROUP
+
+/*
+ * Connect to bearerbox with retry. Keeps trying until connection succeeds
+ * or sqlbox is shutting down. Returns NULL only on shutdown.
+ */
+static Connection *connect_to_bearerbox_with_retry(void)
+{
+    Connection *conn;
+
+    while (sqlbox_status == SQL_RUNNING) {
+        conn = connect_to_bearerbox_real(bearerbox_host, bearerbox_port,
+                                         bearerbox_port_ssl, NULL);
+        if (conn != NULL)
+            return conn;
+        warning(0, "Could not connect to bearerbox at %s:%ld, retrying in %.0f seconds",
+                octstr_get_cstr(bearerbox_host), bearerbox_port,
+                BEARERBOX_CONNECT_RETRY_INTERVAL);
+        gwthread_sleep(BEARERBOX_CONNECT_RETRY_INTERVAL);
+    }
+    return NULL;
+}
 
 static int sqlbox_is_single_group(Octstr *query)
 {
@@ -458,15 +480,20 @@ static void run_sqlbox(void *arg)
         panic(0, "Socket accept failed");
         return;
     }
-    newconn->bearerbox_connection = connect_to_bearerbox_real(bearerbox_host, bearerbox_port, bearerbox_port_ssl, NULL /* bb_our_host */);
-    /* XXX add our_host if required */
-
+    newconn->bearerbox_connection = connect_to_bearerbox_with_retry();
+    if (newconn->bearerbox_connection == NULL) {
+        error(0, "Shutting down, disconnecting client <%s>",
+              octstr_get_cstr(newconn->client_ip));
+        boxc_destroy(newconn);
+        return;
+    }
 
     sender = gwthread_create(bearerbox_to_smsbox, newconn);
     if (sender == -1) {
         error(0, "Failed to start a new thread, disconnecting client <%s>",
               octstr_get_cstr(newconn->client_ip));
-        //goto cleanup;
+        boxc_destroy(newconn);
+        return;
     }
     smsbox_to_bearerbox(newconn);
     gwthread_join(sender);
@@ -527,10 +554,8 @@ static void bearerbox_to_sql(void *arg)
         msg = read_from_box(conn->bearerbox_connection, conn);
 
         if (msg == NULL) {    /* garbage/connection lost */
-                    /* tell sqlbox to die */
             conn->alive = 0;
-            sqlbox_status = SQL_SHUTDOWN;
-            debug("sqlbox", 0, "bearerbox_to_sql: connection to bearerbox died.");
+            debug("sqlbox", 0, "bearerbox_to_sql: connection to bearerbox died, will reconnect.");
             break;
         }
             if (msg_type(msg) == heartbeat) {
@@ -664,30 +689,46 @@ static void sql_list(Boxc *boxc)
 static void sql_to_bearerbox(void *arg)
 {
     Boxc *boxc;
+    long receiver;
 
-    boxc = gw_malloc(sizeof(Boxc));
-    boxc->bearerbox_connection = connect_to_bearerbox_real(bearerbox_host, bearerbox_port, bearerbox_port_ssl, NULL /* bb_our_host */);
-    boxc->smsbox_connection = NULL;
-    boxc->client_ip = NULL;
-    boxc->alive = 1;
-    boxc->connect_time = time(NULL);
-    boxc->boxc_id = octstr_duplicate(sqlbox_id);
-    if (boxc->bearerbox_connection == NULL) {
+    while (sqlbox_status == SQL_RUNNING) {
+        boxc = gw_malloc(sizeof(Boxc));
+        boxc->bearerbox_connection = connect_to_bearerbox_with_retry();
+        boxc->smsbox_connection = NULL;
+        boxc->client_ip = NULL;
+        boxc->alive = 1;
+        boxc->connect_time = time(NULL);
+        boxc->boxc_id = octstr_duplicate(sqlbox_id);
+        if (boxc->bearerbox_connection == NULL) {
+            boxc_destroy(boxc);
+            return;
+        }
+
+        receiver = gwthread_create(bearerbox_to_sql, boxc);
+        if (receiver == -1) {
+            error(0, "Failed to start bearerbox_to_sql thread");
+            boxc_destroy(boxc);
+            gwthread_sleep(BEARERBOX_CONNECT_RETRY_INTERVAL);
+            continue;
+        }
+        identify_to_bearerbox(boxc);
+
+        if (gw_sql_fetch_msg_list == NULL || gw_sql_save_list == NULL || limit_per_cycle <= 1) {
+            sql_single(boxc);
+        }
+        else {
+            sql_list(boxc);
+        }
+
+        gwthread_join(receiver);
         boxc_destroy(boxc);
-        return;
-    }
 
-    gwthread_create(bearerbox_to_sql, boxc);
-    identify_to_bearerbox(boxc);
-
-    if (gw_sql_fetch_msg_list == NULL || gw_sql_save_list == NULL || limit_per_cycle <= 1) {
-        sql_single(boxc);
+        if (sqlbox_status == SQL_RUNNING) {
+            warning(0, "Bearerbox connection lost, reconnecting in %.0f seconds",
+                    BEARERBOX_CONNECT_RETRY_INTERVAL);
+            gwthread_sleep(BEARERBOX_CONNECT_RETRY_INTERVAL);
+        }
     }
-    else {
-        sql_list(boxc);
-    }
-
-    boxc_destroy(boxc);
 }
 
 static void sqlboxc_run(void *arg)
