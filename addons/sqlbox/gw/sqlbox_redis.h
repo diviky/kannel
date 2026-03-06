@@ -22,8 +22,5 @@ Msg* redis_create_msg(json_t* jsonmsg);
 int redis_fetch_msg_list(List* qlist, long limit);
 Octstr* redis_save_msg_create(Msg* msg, Octstr* momt);
 struct server_type* sqlbox_init_redis(Cfg* cfg);
-#ifndef sqlbox_redis_c
-extern
-#endif
-    Octstr* sqlbox_id;
+extern Octstr* sqlbox_id;
 #endif

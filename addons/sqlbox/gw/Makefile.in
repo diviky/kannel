@@ -69,9 +69,9 @@ am_sqlbox_OBJECTS = sqlbox.$(OBJEXT) sqlbox_mssql.$(OBJEXT) \
 	sqlbox_mysql.$(OBJEXT) sqlbox_pgsql.$(OBJEXT) \
 	sqlbox_sdb.$(OBJEXT) sqlbox_sqlite.$(OBJEXT) \
 	sqlbox_sqlite3.$(OBJEXT) sqlbox_oracle.$(OBJEXT) \
-	sqlbox_sql.$(OBJEXT)
+	sqlbox_redis.$(OBJEXT) sqlbox_sql.$(OBJEXT)
 sqlbox_OBJECTS = $(am_sqlbox_OBJECTS)
-sqlbox_LDADD = $(LDADD)
+sqlbox_LDADD = $(LDADD) @JANSSON_LIBS@
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/autotools/depcomp
 am__depfiles_maybe = depfiles
@@ -325,6 +325,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlbox_mysql.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlbox_oracle.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlbox_pgsql.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlbox_redis.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlbox_sdb.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlbox_sql.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlbox_sqlite.Po@am__quote@
