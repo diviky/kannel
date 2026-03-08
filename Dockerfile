@@ -69,13 +69,14 @@ RUN cd /root/softwares/kannel/addons/opensmppbox && \
     make && \
     make bindir=/usr/local/kannel/smppbox install
 
-# Copy example configs before cleanup
-RUN mkdir -p /tmp/kannel-configs && \
+# Build fakesmsc (SMS testing tool) and copy example configs before cleanup
+RUN cd /root/softwares/kannel && make -C test fakesmsc && \
+    mkdir -p /tmp/kannel-configs && \
     cp /root/softwares/kannel/gw/smskannel.conf /tmp/kannel-configs/kannel.conf && \
     cp /root/softwares/kannel/addons/sqlbox/example/sqlbox.conf.example /tmp/kannel-configs/sqlbox.conf && \
     cp /root/softwares/kannel/addons/opensmppbox/example/opensmppbox.conf.example /tmp/kannel-configs/opensmppbox.conf && \
     cp /root/softwares/kannel/addons/opensmppbox/example/smpplogins.txt.example /tmp/kannel-configs/smpplogins.txt && \
-    cp /root/softwares/kannel/test/fakesmsc /usr/local/kannel/fakesmsc
+    cp /root/softwares/kannel/test/.libs/fakesmsc /usr/local/kannel/fakesmsc
 
 # Runtime stage - minimal image
 FROM ubuntu:24.04

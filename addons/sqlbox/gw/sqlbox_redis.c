@@ -9,10 +9,10 @@
 #define sql_update redis_update
 #define sql_select redis_select
 
-static __thread Octstr* sqlbox_logtable;
-static __thread Octstr* sqlbox_insert_table;
-static __thread Octstr* sqlbox_inflight_table;
-static __thread Octstr* boxc_id;
+static Octstr* sqlbox_logtable;
+static Octstr* sqlbox_insert_table;
+static Octstr* sqlbox_inflight_table;
+static Octstr* boxc_id;
 
 /*
  * Our connection pool to redis.
@@ -112,8 +112,44 @@ void sqlbox_configure_redis(Cfg* cfg)
     /* no need to create tables on redis */
 }
 
-#define octstr_null_create(x) (((x != NULL) && (strcmp(x, "NULL")!=0))? octstr_create(x) : octstr_create(""))
-#define atol_null(x) (((x != NULL) && (strcmp(x, "NULL")!=0)) ? atol(x) : -1)
+/* Extract long from JSON - handles integer, real, string, null. Returns -1 for null/undefined (matches MySQL atol_null). */
+static long json_get_long(json_t *obj, const char *key)
+{
+    json_t *val = json_object_get(obj, key);
+    if (val == NULL || json_is_null(val))
+        return -1;
+    if (json_is_integer(val))
+        return (long)json_integer_value(val);
+    if (json_is_real(val))
+        return (long)json_real_value(val);
+    if (json_is_string(val)) {
+        const char *s = json_string_value(val);
+        if (s == NULL || s[0] == '\0' || strcmp(s, "NULL") == 0)
+            return -1;
+        return atol(s);
+    }
+    return -1;
+}
+
+/* Extract Octstr from JSON - handles string, integer, real, null. Returns octstr_create("") for null (matches MySQL octstr_null_create). */
+static Octstr* json_get_octstr(json_t *obj, const char *key)
+{
+    json_t *val = json_object_get(obj, key);
+    if (val == NULL || json_is_null(val))
+        return octstr_create("");
+    if (json_is_string(val)) {
+        const char *s = json_string_value(val);
+        if (s == NULL || strcmp(s, "NULL") == 0)
+            return octstr_create("");
+        return octstr_create(s);
+    }
+    if (json_is_integer(val))
+        return octstr_format("%ld", (long)json_integer_value(val));
+    if (json_is_real(val))
+        return octstr_format("%g", json_real_value(val));
+    return octstr_create("");
+}
+
 Msg* redis_fetch_msg()
 {
     Msg* msg = NULL;
@@ -204,8 +240,6 @@ int redis_fetch_msg_list(List* qlist, long limit)
     int j;
     int k = 0;
 
-    info(0, "REDIS: fetching message from %s list with limit %ld", octstr_get_cstr(sqlbox_insert_table), limit);
-
     pc = dbpool_conn_consume(pool);
     if (pc == NULL) {
         error(0, "REDIS: Database pool got no connection! DB update failed!");
@@ -290,65 +324,48 @@ int redis_fetch_msg_list(List* qlist, long limit)
 
 Msg* redis_create_msg(json_t* jsonmsg)
 {
-    /* save fields in this row as msg struct */
+    Octstr *boxc_val;
+    /* save fields in this row as msg struct - use type-aware extraction to match MySQL */
     Msg* msg = msg_create(sms);
-    msg->sms.foreign_id = octstr_null_create(json_string_value(json_object_get(jsonmsg, "foreign_id")));
-    msg->sms.sender = octstr_null_create(json_string_value(json_object_get(jsonmsg, "sender")));
-    msg->sms.receiver = octstr_null_create(json_string_value(json_object_get(jsonmsg, "receiver")));
-    msg->sms.udhdata = octstr_null_create(json_string_value(json_object_get(jsonmsg, "udhdata")));
-    msg->sms.msgdata = octstr_null_create(json_string_value(json_object_get(jsonmsg, "msgdata")));
-    msg->sms.time = atol_null(json_string_value(json_object_get(jsonmsg, "time")));
-    msg->sms.smsc_id = octstr_null_create(json_string_value(json_object_get(jsonmsg, "smsc_id")));
-    msg->sms.service = octstr_null_create(json_string_value(json_object_get(jsonmsg, "service")));
-    msg->sms.account = octstr_null_create(json_string_value(json_object_get(jsonmsg, "account")));
-    msg->sms.sms_type = atol_null(json_string_value(json_object_get(jsonmsg, "sms_type")));
-    msg->sms.mclass = atol_null(json_string_value(json_object_get(jsonmsg, "mclass")));
-    msg->sms.mwi = atol_null(json_string_value(json_object_get(jsonmsg, "mwi")));
-    msg->sms.coding = atol_null(json_string_value(json_object_get(jsonmsg, "coding")));
-    msg->sms.compress = atol_null(json_string_value(json_object_get(jsonmsg, "compress")));
-    msg->sms.validity = atol_null(json_string_value(json_object_get(jsonmsg, "validity")));
-    msg->sms.deferred = atol_null(json_string_value(json_object_get(jsonmsg, "deferred")));
-    msg->sms.dlr_mask = atol_null(json_string_value(json_object_get(jsonmsg, "dlr_mask")));
-    msg->sms.dlr_url = octstr_null_create(json_string_value(json_object_get(jsonmsg, "dlr_url")));
-    msg->sms.pid = atol_null(json_string_value(json_object_get(jsonmsg, "pid")));
-    msg->sms.alt_dcs = atol_null(json_string_value(json_object_get(jsonmsg, "alt_dcs")));
-    msg->sms.rpi = atol_null(json_string_value(json_object_get(jsonmsg, "rpi")));
-    msg->sms.charset = octstr_null_create(json_string_value(json_object_get(jsonmsg, "charset")));
-    msg->sms.binfo = octstr_null_create(json_string_value(json_object_get(jsonmsg, "binfo")));
-    msg->sms.priority = atol_null(json_string_value(json_object_get(jsonmsg, "priority")));
-    msg->sms.meta_data = octstr_null_create(json_string_value(json_object_get(jsonmsg, "meta_data")));
-    if (json_string_value(json_object_get(jsonmsg, "boxc_id")) == NULL) {
+    msg->sms.foreign_id = json_get_octstr(jsonmsg, "foreign_id");
+    msg->sms.sender = json_get_octstr(jsonmsg, "sender");
+    msg->sms.receiver = json_get_octstr(jsonmsg, "receiver");
+    msg->sms.udhdata = json_get_octstr(jsonmsg, "udhdata");
+    msg->sms.msgdata = json_get_octstr(jsonmsg, "msgdata");
+    msg->sms.time = json_get_long(jsonmsg, "time");
+    msg->sms.smsc_id = json_get_octstr(jsonmsg, "smsc_id");
+    msg->sms.service = json_get_octstr(jsonmsg, "service");
+    msg->sms.account = json_get_octstr(jsonmsg, "account");
+    msg->sms.sms_type = json_get_long(jsonmsg, "sms_type");
+    msg->sms.mclass = json_get_long(jsonmsg, "mclass");
+    msg->sms.mwi = json_get_long(jsonmsg, "mwi");
+    msg->sms.coding = json_get_long(jsonmsg, "coding");
+    msg->sms.compress = json_get_long(jsonmsg, "compress");
+    msg->sms.validity = json_get_long(jsonmsg, "validity");
+    msg->sms.deferred = json_get_long(jsonmsg, "deferred");
+    msg->sms.dlr_mask = json_get_long(jsonmsg, "dlr_mask");
+    /* When undefined, default to requesting DLRs (31) to match MySQL behavior when row has NULL */
+    if (msg->sms.dlr_mask == -1)
+        msg->sms.dlr_mask = 31;
+    msg->sms.dlr_url = json_get_octstr(jsonmsg, "dlr_url");
+    msg->sms.pid = json_get_long(jsonmsg, "pid");
+    msg->sms.alt_dcs = json_get_long(jsonmsg, "alt_dcs");
+    msg->sms.rpi = json_get_long(jsonmsg, "rpi");
+    msg->sms.charset = json_get_octstr(jsonmsg, "charset");
+    msg->sms.binfo = json_get_octstr(jsonmsg, "binfo");
+    msg->sms.priority = json_get_long(jsonmsg, "priority");
+    msg->sms.meta_data = json_get_octstr(jsonmsg, "meta_data");
+
+    boxc_val = json_get_octstr(jsonmsg, "boxc_id");
+    if (octstr_len(boxc_val) == 0 && boxc_id != NULL) {
+        octstr_destroy(boxc_val);
         msg->sms.boxc_id = octstr_duplicate(boxc_id);
     } else {
-        msg->sms.boxc_id = octstr_null_create(json_string_value(json_object_get(jsonmsg, "boxc_id")));
+        msg->sms.boxc_id = boxc_val;
     }
 
     return msg;
 }
-
-static Octstr* get_numeric_value_or_return_null(long int num)
-{
-    if (num == -1) {
-        return octstr_create("NULL");
-    }
-    return octstr_format("%ld", num);
-}
-
-static Octstr* get_string_value_or_return_null(Octstr* str)
-{
-    if (str == NULL) {
-        return octstr_create("NULL");
-    }
-    if (octstr_compare(str, octstr_imm("")) == 0) {
-        return octstr_create("NULL");
-    }
-    octstr_replace(str, octstr_imm("\\"), octstr_imm("\\\\"));
-    octstr_replace(str, octstr_imm("\'"), octstr_imm("\\\'"));
-    return octstr_format("%S", str);
-}
-
-#define st_num(x) (stuffer[stuffcount++] = get_numeric_value_or_return_null(x))
-#define st_str(x) (stuffer[stuffcount++] = get_string_value_or_return_null(x))
 
 void redis_save_msg(Msg* msg, Octstr* momt /*, Octstr smsbox_id */)
 {
@@ -379,42 +396,56 @@ void redis_save_list(List* qlist, Octstr* momt, int save_mt)
     }
 }
 
+/* Set JSON value: string for Octstr, integer for long (matches MySQL VARCHAR vs BIGINT) */
+static void json_set_str(json_t *obj, const char *key, Octstr *val)
+{
+    if (val == NULL || octstr_len(val) == 0)
+        json_object_set_new(obj, key, json_string(""));
+    else
+        json_object_set_new(obj, key, json_string(octstr_get_cstr(val)));
+}
+static void json_set_long(json_t *obj, const char *key, long val)
+{
+    if (val == -1)
+        json_object_set_new(obj, key, json_null());
+    else
+        json_object_set_new(obj, key, json_integer(val));
+}
+
 Octstr* redis_save_msg_create(Msg* msg, Octstr* momt)
 {
     json_t *msgjson, *root;
     Octstr* jsonstr;
-    msgjson = json_object();
     char* json;
-    Octstr* stuffer[30];
-    int stuffcount = 0;
 
-    json_object_set_new(msgjson, "momt", json_string(octstr_get_cstr(st_str(momt))));
-    json_object_set_new(msgjson, "sender", json_string(octstr_get_cstr(st_str(msg->sms.sender))));
-    json_object_set_new(msgjson, "receiver", json_string(octstr_get_cstr(st_str(msg->sms.receiver))));
-    json_object_set_new(msgjson, "foreign_id", json_string(octstr_get_cstr(st_str(msg->sms.foreign_id))));
-    json_object_set_new(msgjson, "udhdata", json_string(octstr_get_cstr(st_str(msg->sms.udhdata))));
-    json_object_set_new(msgjson, "msgdata", json_string(octstr_get_cstr(st_str(msg->sms.msgdata))));
-    json_object_set_new(msgjson, "time", json_string(octstr_get_cstr(st_num(msg->sms.time))));
-    json_object_set_new(msgjson, "smsc_id", json_string(octstr_get_cstr(st_str(msg->sms.smsc_id))));
-    json_object_set_new(msgjson, "service", json_string(octstr_get_cstr(st_str(msg->sms.service))));
-    json_object_set_new(msgjson, "account", json_string(octstr_get_cstr(st_str(msg->sms.account))));
-    json_object_set_new(msgjson, "sms_type", json_string(octstr_get_cstr(st_num(msg->sms.sms_type))));
-    json_object_set_new(msgjson, "mclass", json_string(octstr_get_cstr(st_num(msg->sms.mclass))));
-    json_object_set_new(msgjson, "mwi", json_string(octstr_get_cstr(st_num(msg->sms.mwi))));
-    json_object_set_new(msgjson, "coding", json_string(octstr_get_cstr(st_num(msg->sms.coding))));
-    json_object_set_new(msgjson, "compress", json_string(octstr_get_cstr(st_num(msg->sms.compress))));
-    json_object_set_new(msgjson, "validity", json_string(octstr_get_cstr(st_num(msg->sms.validity))));
-    json_object_set_new(msgjson, "deferred", json_string(octstr_get_cstr(st_num(msg->sms.deferred))));
-    json_object_set_new(msgjson, "dlr_mask", json_string(octstr_get_cstr(st_num(msg->sms.dlr_mask))));
-    json_object_set_new(msgjson, "dlr_url", json_string(octstr_get_cstr(st_str(msg->sms.dlr_url))));
-    json_object_set_new(msgjson, "pid", json_string(octstr_get_cstr(st_num(msg->sms.pid))));
-    json_object_set_new(msgjson, "alt_dcs", json_string(octstr_get_cstr(st_num(msg->sms.alt_dcs))));
-    json_object_set_new(msgjson, "rpi", json_string(octstr_get_cstr(st_num(msg->sms.rpi))));
-    json_object_set_new(msgjson, "charset", json_string(octstr_get_cstr(st_str(msg->sms.charset))));
-    json_object_set_new(msgjson, "boxc_id", json_string(octstr_get_cstr(st_str(msg->sms.boxc_id))));
-    json_object_set_new(msgjson, "binfo", json_string(octstr_get_cstr(st_str(msg->sms.binfo))));
-    json_object_set_new(msgjson, "priority", json_string(octstr_get_cstr(st_num(msg->sms.priority))));
-    json_object_set_new(msgjson, "meta_data", json_string(octstr_get_cstr(st_str(msg->sms.meta_data))));
+    msgjson = json_object();
+    json_set_str(msgjson, "momt", momt);
+    json_set_str(msgjson, "sender", msg->sms.sender);
+    json_set_str(msgjson, "receiver", msg->sms.receiver);
+    json_set_str(msgjson, "foreign_id", msg->sms.foreign_id);
+    json_set_str(msgjson, "udhdata", msg->sms.udhdata);
+    json_set_str(msgjson, "msgdata", msg->sms.msgdata);
+    json_set_long(msgjson, "time", msg->sms.time);
+    json_set_str(msgjson, "smsc_id", msg->sms.smsc_id);
+    json_set_str(msgjson, "service", msg->sms.service);
+    json_set_str(msgjson, "account", msg->sms.account);
+    json_set_long(msgjson, "sms_type", msg->sms.sms_type);
+    json_set_long(msgjson, "mclass", msg->sms.mclass);
+    json_set_long(msgjson, "mwi", msg->sms.mwi);
+    json_set_long(msgjson, "coding", msg->sms.coding);
+    json_set_long(msgjson, "compress", msg->sms.compress);
+    json_set_long(msgjson, "validity", msg->sms.validity);
+    json_set_long(msgjson, "deferred", msg->sms.deferred);
+    json_set_long(msgjson, "dlr_mask", msg->sms.dlr_mask);
+    json_set_str(msgjson, "dlr_url", msg->sms.dlr_url);
+    json_set_long(msgjson, "pid", msg->sms.pid);
+    json_set_long(msgjson, "alt_dcs", msg->sms.alt_dcs);
+    json_set_long(msgjson, "rpi", msg->sms.rpi);
+    json_set_str(msgjson, "charset", msg->sms.charset);
+    json_set_str(msgjson, "boxc_id", msg->sms.boxc_id);
+    json_set_str(msgjson, "binfo", msg->sms.binfo);
+    json_set_long(msgjson, "priority", msg->sms.priority);
+    json_set_str(msgjson, "meta_data", msg->sms.meta_data);
 
     root = json_object();
     json_object_set(root, "msg", msgjson);
@@ -425,10 +456,6 @@ Octstr* redis_save_msg_create(Msg* msg, Octstr* momt)
     json_decref(root);
 
     gw_free(json);
-
-    while (stuffcount > 0) {
-        octstr_destroy(stuffer[--stuffcount]);
-    }
 
     return jsonstr;
 }
