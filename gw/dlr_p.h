@@ -83,6 +83,7 @@ struct dlr_entry {
    Octstr *service;
    Octstr *url;
    Octstr *boxc_id;
+   Octstr *binfo;
    int mask;
    int use_dst;
 };

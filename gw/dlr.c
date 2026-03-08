@@ -131,6 +131,7 @@ struct dlr_entry *dlr_entry_duplicate(const struct dlr_entry *dlr)
     ret->service = octstr_duplicate(dlr->service);
     ret->url = octstr_duplicate(dlr->url);
     ret->boxc_id = octstr_duplicate(dlr->boxc_id);
+    ret->binfo = (dlr->binfo ? octstr_duplicate(dlr->binfo) : octstr_create(""));
     ret->mask = dlr->mask;
 
     return ret;
@@ -154,6 +155,7 @@ void dlr_entry_destroy(struct dlr_entry *dlr)
     O_DELETE(dlr->service);
     O_DELETE(dlr->url);
     O_DELETE(dlr->boxc_id);
+    O_DELETE(dlr->binfo);
 
 #undef O_DELETE
 
@@ -368,6 +370,7 @@ void dlr_add(const Octstr *smsc, const Octstr *ts, Msg *msg, int use_dst)
     dlr->service = (msg->sms.service ? octstr_duplicate(msg->sms.service) : octstr_create(""));
     dlr->url = (msg->sms.dlr_url ? octstr_duplicate(msg->sms.dlr_url) : octstr_create(""));
     dlr->boxc_id = (msg->sms.boxc_id ? octstr_duplicate(msg->sms.boxc_id) : octstr_create(""));
+    dlr->binfo = (msg->sms.binfo ? octstr_duplicate(msg->sms.binfo) : octstr_create(""));
     dlr->mask = msg->sms.dlr_mask;
     dlr->use_dst = use_dst;
 
@@ -430,6 +433,7 @@ Msg *dlr_find(const Octstr *smsc, const Octstr *ts, const Octstr *dst, int typ, 
         O_SET(msg->sms.sender, dlr->source);
         /* if dlr_url was present, recode it here again */
         O_SET(msg->sms.dlr_url, dlr->url);
+        O_SET(msg->sms.binfo, dlr->binfo);
         /* add the foreign_id */
         msg->sms.foreign_id = octstr_duplicate(ts);
         /* 
@@ -521,6 +525,7 @@ Msg* create_dlr_from_msg(const Octstr *smsc, const Msg *msg, const Octstr *reply
     dlrmsg->sms.dlr_url = octstr_duplicate(msg->sms.dlr_url);
     dlrmsg->sms.msgdata = octstr_duplicate(reply);
     dlrmsg->sms.boxc_id = octstr_duplicate(msg->sms.boxc_id);
+    dlrmsg->sms.binfo = (msg->sms.binfo ? octstr_duplicate(msg->sms.binfo) : octstr_create(""));
     dlrmsg->sms.foreign_id = octstr_duplicate(msg->sms.foreign_id);
     time(&dlrmsg->sms.time);
     dlrmsg->sms.meta_data = octstr_duplicate(msg->sms.meta_data);
