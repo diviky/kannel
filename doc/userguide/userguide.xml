@@ -6277,6 +6277,16 @@ field-boxc-id = boxc
 		  database table and keep it empty.
      </entry></row>
 
+   <row><entry><literal>field-binfo (o)</literal></entry>
+     <entry>string</entry>
+     <entry valign="bottom">
+        Optional. The table field that stores the billing identifier (binfo)
+        from the original message. When specified, binfo is stored with DLR
+        entries and returned in delivery reports, allowing you to map DLRs
+        back to your original request IDs. Add a binfo column to your DLR
+        table and set this directive to enable.
+     </entry></row>
+
   </tbody>
   </tgroup>
  </table>
@@ -6296,10 +6306,11 @@ field-url = url
 field-mask = mask
 field-status = status
 field-boxc-id = boxc
+# field-binfo = binfo   (optional, for returning binfo in DLRs)
 </programlisting>
 
   </para>
-  <para>Beware that all variables in this group are mandatory, so you
+  <para>Beware that all variables in this group except field-binfo are mandatory, so you
   have to specify all fields to enable bearerbox to know how to store
   and retrieve the DLR information from the external storage spaces.
   </para>

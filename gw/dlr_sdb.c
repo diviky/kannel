@@ -137,18 +137,33 @@ static void dlr_sdb_add(struct dlr_entry *dlr)
     Octstr *sql;
     int	state;
 
-    sql = octstr_format("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES "
-                        "('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d')",
-                        octstr_get_cstr(fields->table), octstr_get_cstr(fields->field_smsc),
-                        octstr_get_cstr(fields->field_ts),
-                        octstr_get_cstr(fields->field_src), octstr_get_cstr(fields->field_dst),
-                        octstr_get_cstr(fields->field_serv), octstr_get_cstr(fields->field_url),
-                        octstr_get_cstr(fields->field_mask), octstr_get_cstr(fields->field_boxc),
-                        octstr_get_cstr(fields->field_status),
-                        octstr_get_cstr(dlr->smsc), octstr_get_cstr(dlr->timestamp),
-                        octstr_get_cstr(dlr->source), octstr_get_cstr(dlr->destination),
-                        octstr_get_cstr(dlr->service), octstr_get_cstr(dlr->url), dlr->mask,
-                        octstr_get_cstr(dlr->boxc_id), 0);
+    if (fields->field_binfo) {
+        sql = octstr_format("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES "
+                            "('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d')",
+                            octstr_get_cstr(fields->table), octstr_get_cstr(fields->field_smsc),
+                            octstr_get_cstr(fields->field_ts),
+                            octstr_get_cstr(fields->field_src), octstr_get_cstr(fields->field_dst),
+                            octstr_get_cstr(fields->field_serv), octstr_get_cstr(fields->field_url),
+                            octstr_get_cstr(fields->field_mask), octstr_get_cstr(fields->field_boxc),
+                            octstr_get_cstr(fields->field_binfo), octstr_get_cstr(fields->field_status),
+                            octstr_get_cstr(dlr->smsc), octstr_get_cstr(dlr->timestamp),
+                            octstr_get_cstr(dlr->source), octstr_get_cstr(dlr->destination),
+                            octstr_get_cstr(dlr->service), octstr_get_cstr(dlr->url), dlr->mask,
+                            octstr_get_cstr(dlr->boxc_id), octstr_get_cstr(dlr->binfo), 0);
+    } else {
+        sql = octstr_format("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES "
+                            "('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d')",
+                            octstr_get_cstr(fields->table), octstr_get_cstr(fields->field_smsc),
+                            octstr_get_cstr(fields->field_ts),
+                            octstr_get_cstr(fields->field_src), octstr_get_cstr(fields->field_dst),
+                            octstr_get_cstr(fields->field_serv), octstr_get_cstr(fields->field_url),
+                            octstr_get_cstr(fields->field_mask), octstr_get_cstr(fields->field_boxc),
+                            octstr_get_cstr(fields->field_status),
+                            octstr_get_cstr(dlr->smsc), octstr_get_cstr(dlr->timestamp),
+                            octstr_get_cstr(dlr->source), octstr_get_cstr(dlr->destination),
+                            octstr_get_cstr(dlr->service), octstr_get_cstr(dlr->url), dlr->mask,
+                            octstr_get_cstr(dlr->boxc_id), 0);
+    }
 
 #if defined(DLR_TRACE)
      debug("dlr.sdb", 0, "SDB: sql: %s", octstr_get_cstr(sql));
@@ -167,14 +182,16 @@ static void dlr_sdb_add(struct dlr_entry *dlr)
 static int sdb_callback_add(int n, char **p, void *data)
 {
     struct dlr_entry *res = (struct dlr_entry *) data;
+    int expected_cols = fields->field_binfo ? 7 : 6;
 
-    if (n != 6) {
-        debug("dlr.sdb", 0, "SDB: Result has incorrect number of columns: %d", n);
+    if (n != expected_cols) {
+        debug("dlr.sdb", 0, "SDB: Result has incorrect number of columns: %d (expected %d)", n, expected_cols);
         return 0;
     }
 
 #if defined(DLR_TRACE)
-    debug("dlr.sdb", 0, "row=%s,%s,%s,%s,%s,%s",p[0],p[1],p[2],p[3],p[4],p[5]);
+    debug("dlr.sdb", 0, "row=%s,%s,%s,%s,%s,%s%s", p[0], p[1], p[2], p[3], p[4], p[5],
+          fields->field_binfo ? p[6] : "");
 #endif
 
     if (res->destination != NULL) {
@@ -188,6 +205,10 @@ static int sdb_callback_add(int n, char **p, void *data)
     res->source = octstr_create(p[3]);
     res->destination = octstr_create(p[4]);
     res->boxc_id = octstr_create(p[5]);
+    if (fields->field_binfo)
+        res->binfo = octstr_create(p[6]);
+    else
+        res->binfo = octstr_create("");
 
     return 0;
 }
@@ -223,11 +244,19 @@ static struct dlr_entry*  dlr_sdb_get(const Octstr *smsc, const Octstr *ts, cons
     else
         like = octstr_imm("");
 
-    sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S' "
-          "AND %S='%S' %S %s", fields->field_mask, fields->field_serv,
-          fields->field_url, fields->field_src, fields->field_dst,
-          fields->field_boxc, fields->table, fields->field_smsc, smsc,
-          fields->field_ts, ts, like, sdb_get_limit_str());
+    if (fields->field_binfo) {
+        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S' "
+              "AND %S='%S' %S %s", fields->field_mask, fields->field_serv,
+              fields->field_url, fields->field_src, fields->field_dst,
+              fields->field_boxc, fields->field_binfo, fields->table,
+              fields->field_smsc, smsc, fields->field_ts, ts, like, sdb_get_limit_str());
+    } else {
+        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S' "
+              "AND %S='%S' %S %s", fields->field_mask, fields->field_serv,
+              fields->field_url, fields->field_src, fields->field_dst,
+              fields->field_boxc, fields->table, fields->field_smsc, smsc,
+              fields->field_ts, ts, like, sdb_get_limit_str());
+    }
 
 #if defined(DLR_TRACE)
      debug("dlr.sdb", 0, "SDB: sql: %s", octstr_get_cstr(sql));

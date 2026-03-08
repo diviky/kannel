@@ -101,7 +101,7 @@ static void *redis_open_conn(const DBConf *db_conf)
     info(0, "REDIS: Connected to server at %s:%ld.",
          octstr_get_cstr(conf->host), conf->port);
 
-    if (conf->password != NULL) {
+    if (conf->password != NULL && octstr_len(conf->password) > 0) {
         reply = redisCommand(redis, "AUTH %s", octstr_get_cstr(conf->password));
         if (strncmp("OK", reply->str, 2) != 0) {
             error(0, "REDIS: Password authentication failed!");

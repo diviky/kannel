@@ -159,6 +159,7 @@ struct dlr_db_fields {
     Octstr *field_mask;
     Octstr *field_status;
     Octstr *field_boxc;
+    Octstr *field_binfo;
 };
 
 struct dlr_db_fields *dlr_db_fields_create(CfgGroup *grp);

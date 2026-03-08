@@ -141,17 +141,31 @@ static void dlr_pgsql_add(struct dlr_entry *entry)
 {
     Octstr *sql;
 
-    sql = octstr_format("INSERT INTO \"%s\" (\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\") VALUES "
-                        "('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d');",
-                        octstr_get_cstr(fields->table), octstr_get_cstr(fields->field_smsc),
-                        octstr_get_cstr(fields->field_ts),
-                        octstr_get_cstr(fields->field_src), octstr_get_cstr(fields->field_dst),
-                        octstr_get_cstr(fields->field_serv), octstr_get_cstr(fields->field_url),
-                        octstr_get_cstr(fields->field_mask), octstr_get_cstr(fields->field_boxc),
-                        octstr_get_cstr(fields->field_status),
-                        octstr_get_cstr(entry->smsc), octstr_get_cstr(entry->timestamp), octstr_get_cstr(entry->source),
-                        octstr_get_cstr(entry->destination), octstr_get_cstr(entry->service), octstr_get_cstr(entry->url),
-                        entry->mask, octstr_get_cstr(entry->boxc_id), 0);
+    if (fields->field_binfo) {
+        sql = octstr_format("INSERT INTO \"%s\" (\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\") VALUES "
+                            "('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d');",
+                            octstr_get_cstr(fields->table), octstr_get_cstr(fields->field_smsc),
+                            octstr_get_cstr(fields->field_ts),
+                            octstr_get_cstr(fields->field_src), octstr_get_cstr(fields->field_dst),
+                            octstr_get_cstr(fields->field_serv), octstr_get_cstr(fields->field_url),
+                            octstr_get_cstr(fields->field_mask), octstr_get_cstr(fields->field_boxc),
+                            octstr_get_cstr(fields->field_binfo), octstr_get_cstr(fields->field_status),
+                            octstr_get_cstr(entry->smsc), octstr_get_cstr(entry->timestamp), octstr_get_cstr(entry->source),
+                            octstr_get_cstr(entry->destination), octstr_get_cstr(entry->service), octstr_get_cstr(entry->url),
+                            entry->mask, octstr_get_cstr(entry->boxc_id), octstr_get_cstr(entry->binfo), 0);
+    } else {
+        sql = octstr_format("INSERT INTO \"%s\" (\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\") VALUES "
+                            "('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d');",
+                            octstr_get_cstr(fields->table), octstr_get_cstr(fields->field_smsc),
+                            octstr_get_cstr(fields->field_ts),
+                            octstr_get_cstr(fields->field_src), octstr_get_cstr(fields->field_dst),
+                            octstr_get_cstr(fields->field_serv), octstr_get_cstr(fields->field_url),
+                            octstr_get_cstr(fields->field_mask), octstr_get_cstr(fields->field_boxc),
+                            octstr_get_cstr(fields->field_status),
+                            octstr_get_cstr(entry->smsc), octstr_get_cstr(entry->timestamp), octstr_get_cstr(entry->source),
+                            octstr_get_cstr(entry->destination), octstr_get_cstr(entry->service), octstr_get_cstr(entry->url),
+                            entry->mask, octstr_get_cstr(entry->boxc_id), 0);
+    }
 
 
     if (!pgsql_update(sql))
@@ -173,11 +187,19 @@ static struct dlr_entry *dlr_pgsql_get(const Octstr *smsc, const Octstr *ts, con
     else
         like = octstr_imm("");
 
-    sql = octstr_format("SELECT \"%S\", \"%S\", \"%S\", \"%S\", \"%S\", "
-          "\"%S\" FROM \"%S\" WHERE \"%S\"='%S' AND \"%S\"='%S' %S LIMIT 1;",
-          fields->field_mask, fields->field_serv, fields->field_url,
-          fields->field_src, fields->field_dst, fields->field_boxc,
-          fields->table, fields->field_smsc, smsc, fields->field_ts, ts, like);
+    if (fields->field_binfo) {
+        sql = octstr_format("SELECT \"%S\", \"%S\", \"%S\", \"%S\", \"%S\", "
+              "\"%S\", \"%S\" FROM \"%S\" WHERE \"%S\"='%S' AND \"%S\"='%S' %S LIMIT 1;",
+              fields->field_mask, fields->field_serv, fields->field_url,
+              fields->field_src, fields->field_dst, fields->field_boxc, fields->field_binfo,
+              fields->table, fields->field_smsc, smsc, fields->field_ts, ts, like);
+    } else {
+        sql = octstr_format("SELECT \"%S\", \"%S\", \"%S\", \"%S\", \"%S\", "
+              "\"%S\" FROM \"%S\" WHERE \"%S\"='%S' AND \"%S\"='%S' %S LIMIT 1;",
+              fields->field_mask, fields->field_serv, fields->field_url,
+              fields->field_src, fields->field_dst, fields->field_boxc,
+              fields->table, fields->field_smsc, smsc, fields->field_ts, ts, like);
+    }
 
     result = pgsql_select(sql);
     octstr_destroy(sql);
@@ -208,6 +230,10 @@ static struct dlr_entry *dlr_pgsql_get(const Octstr *smsc, const Octstr *ts, con
     res->source      = octstr_duplicate(gwlist_get(row, 3));
     res->destination = octstr_duplicate(gwlist_get(row, 4));
     res->boxc_id     = octstr_duplicate(gwlist_get(row, 5));
+    if (fields->field_binfo && gwlist_len(row) > 6)
+        res->binfo   = octstr_duplicate(gwlist_get(row, 6));
+    else
+        res->binfo   = octstr_create("");
     res->smsc        = octstr_duplicate(smsc);
 
     while((row = gwlist_extract_first(result)))
@@ -346,6 +372,8 @@ struct dlr_storage *dlr_init_pgsql(Cfg *cfg)
     octstr_replace(fields->field_mask, octstr_imm("\""), octstr_imm("\"\""));
     octstr_replace(fields->field_status, octstr_imm("\""), octstr_imm("\"\"")); 
     octstr_replace(fields->field_boxc, octstr_imm("\""), octstr_imm("\"\""));
+    if (fields->field_binfo)
+        octstr_replace(fields->field_binfo, octstr_imm("\""), octstr_imm("\"\""));
 
     /*
      * now grap the required information from the 'pgsql-connection' group

@@ -180,6 +180,10 @@ static void dlr_redis_add(struct dlr_entry *entry)
     gwlist_append(binds, os);
     gwlist_append(binds, fields->field_boxc);
     gwlist_append(binds, entry->boxc_id);
+    if (fields->field_binfo) {
+        gwlist_append(binds, fields->field_binfo);
+        gwlist_append(binds, entry->binfo);
+    }
     gwlist_append(binds, fields->field_status);
     gwlist_append(binds, octstr_imm("0"));
 
@@ -259,6 +263,8 @@ static struct dlr_entry *dlr_redis_get(const Octstr *smsc, const Octstr *ts, con
     gwlist_append(binds, fields->field_src);
     gwlist_append(binds, fields->field_dst);
     gwlist_append(binds, fields->field_boxc);
+    if (fields->field_binfo)
+        gwlist_append(binds, fields->field_binfo);
 
     if (dbpool_conn_select(pconn, sql, binds, &result) != 0) {
         error(0, "DLR: REDIS: Failed to fetch DLR for %s", octstr_get_cstr(key));
@@ -295,6 +301,13 @@ static struct dlr_entry *dlr_redis_get(const Octstr *smsc, const Octstr *ts, con
             get_octstr_value(&res->source, row, 3);
             get_octstr_value(&res->destination, row, 4);
             get_octstr_value(&res->boxc_id, row, 5);
+            if (fields->field_binfo && gwlist_len(row) > 6) {
+                get_octstr_value(&res->binfo, row, 6);
+                if (res->binfo == NULL)
+                    res->binfo = octstr_create("");
+            } else {
+                res->binfo = octstr_create("");
+            }
             res->smsc = octstr_duplicate(smsc);
         }
         gwlist_destroy(row, octstr_destroy_item);
@@ -504,6 +517,8 @@ struct dlr_storage *dlr_init_redis(Cfg *cfg)
     octstr_replace(fields->field_mask, octstr_imm("`"), octstr_imm("``"));
     octstr_replace(fields->field_status, octstr_imm("`"), octstr_imm("``"));
     octstr_replace(fields->field_boxc, octstr_imm("`"), octstr_imm("``"));
+    if (fields->field_binfo)
+        octstr_replace(fields->field_binfo, octstr_imm("`"), octstr_imm("``"));
 
     /*
      * Now grab the required information from the 'redis-connection' group

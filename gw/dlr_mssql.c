@@ -61,7 +61,7 @@
  * 
  * Based on dlr_oracle.c
  * Alexander Malysh <a.malysh@centrium.de>
- * Robert Ga≥ach <robert.galach@my.tenbit.pl>
+ * Robert Gaùach <robert.galach@my.tenbit.pl>
  *
  * Copyright: See COPYING file that comes with this distribution
  */
@@ -138,13 +138,25 @@ static void dlr_add_mssql(struct dlr_entry *entry)
         return;
     }
     
-    sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
-                "('%S', '%S', '%S', '%S', '%S', '%S', '%d', '%S', '%d')",
-                fields->table, fields->field_smsc, fields->field_ts, fields->field_src,
-                fields->field_dst, fields->field_serv, fields->field_url,
-                fields->field_mask, fields->field_boxc, fields->field_status,
-                entry->smsc, entry->timestamp, entry->source, entry->destination,
-                entry->service, entry->url, entry->mask, entry->boxc_id, 0);
+    if (fields->field_binfo) {
+        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
+                    "('%S', '%S', '%S', '%S', '%S', '%S', '%d', '%S', '%S', '%d')",
+                    fields->table, fields->field_smsc, fields->field_ts, fields->field_src,
+                    fields->field_dst, fields->field_serv, fields->field_url,
+                    fields->field_mask, fields->field_boxc, fields->field_binfo,
+                    fields->field_status,
+                    entry->smsc, entry->timestamp, entry->source, entry->destination,
+                    entry->service, entry->url, entry->mask, entry->boxc_id,
+                    entry->binfo, 0);
+    } else {
+        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
+                    "('%S', '%S', '%S', '%S', '%S', '%S', '%d', '%S', '%d')",
+                    fields->table, fields->field_smsc, fields->field_ts, fields->field_src,
+                    fields->field_dst, fields->field_serv, fields->field_url,
+                    fields->field_mask, fields->field_boxc, fields->field_status,
+                    entry->smsc, entry->timestamp, entry->source, entry->destination,
+                    entry->service, entry->url, entry->mask, entry->boxc_id, 0);
+    }
 
 #if defined(DLR_TRACE)
     debug("dlr.mssql", 0, "sql: %s", octstr_get_cstr(sql));
@@ -211,11 +223,19 @@ static struct dlr_entry* dlr_get_mssql(const Octstr *smsc, const Octstr *ts, con
     else
         like = octstr_imm("");
 
-    sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S'"
-          " AND %S='%S' %S", fields->field_mask, fields->field_serv,
-          fields->field_url, fields->field_src, fields->field_dst,
-          fields->field_boxc, fields->table, fields->field_smsc, smsc,
-          fields->field_ts, ts, like);
+    if (fields->field_binfo) {
+        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S'"
+              " AND %S='%S' %S", fields->field_mask, fields->field_serv,
+              fields->field_url, fields->field_src, fields->field_dst,
+              fields->field_boxc, fields->field_binfo, fields->table,
+              fields->field_smsc, smsc, fields->field_ts, ts, like);
+    } else {
+        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S'"
+              " AND %S='%S' %S", fields->field_mask, fields->field_serv,
+              fields->field_url, fields->field_src, fields->field_dst,
+              fields->field_boxc, fields->table, fields->field_smsc, smsc,
+              fields->field_ts, ts, like);
+    }
 
 #if defined(DLR_TRACE)
     debug("dlr.mssql", 0, "sql: %s", octstr_get_cstr(sql));
@@ -241,6 +261,11 @@ static struct dlr_entry* dlr_get_mssql(const Octstr *smsc, const Octstr *ts, con
         res->source = octstr_create(LO2CSTR(row, 3));
         res->destination = octstr_create(LO2CSTR(row, 4));
         res->boxc_id = octstr_create(LO2CSTR(row, 5));
+        if (fields->field_binfo && gwlist_len(row) > 6) {
+            res->binfo = octstr_create(LO2CSTR(row, 6));
+        } else {
+            res->binfo = octstr_create("");
+        }
         gwlist_destroy(row, octstr_destroy_item);
         res->smsc = octstr_duplicate(smsc);
     }

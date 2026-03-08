@@ -72,10 +72,10 @@ RUN cd /root/softwares/kannel/addons/opensmppbox && \
 # Copy example configs before cleanup
 RUN mkdir -p /tmp/kannel-configs && \
     cp /root/softwares/kannel/gw/smskannel.conf /tmp/kannel-configs/kannel.conf && \
-    cp /root/softwares/kannel/debian/kannel.default /tmp/kannel-configs/kannel.default && \
     cp /root/softwares/kannel/addons/sqlbox/example/sqlbox.conf.example /tmp/kannel-configs/sqlbox.conf && \
     cp /root/softwares/kannel/addons/opensmppbox/example/opensmppbox.conf.example /tmp/kannel-configs/opensmppbox.conf && \
-    cp /root/softwares/kannel/addons/opensmppbox/example/smpplogins.txt.example /tmp/kannel-configs/smpplogins.txt
+    cp /root/softwares/kannel/addons/opensmppbox/example/smpplogins.txt.example /tmp/kannel-configs/smpplogins.txt && \
+    cp /root/softwares/kannel/test/fakesmsc /usr/local/kannel/fakesmsc
 
 # Runtime stage - minimal image
 FROM ubuntu:24.04
@@ -110,7 +110,6 @@ RUN curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o 
 COPY --from=builder /usr/local/kannel /usr/local/kannel
 COPY --from=builder /usr/local/lib/libjansson.so* /usr/local/lib/
 COPY --from=builder /tmp/kannel-configs/kannel.conf /etc/kannel/kannel.conf
-COPY --from=builder /tmp/kannel-configs/kannel.default /etc/default/kannel
 COPY --from=builder /tmp/kannel-configs/sqlbox.conf /etc/kannel/sqlbox.conf
 COPY --from=builder /tmp/kannel-configs/opensmppbox.conf /etc/kannel/opensmppbox.conf
 COPY --from=builder /tmp/kannel-configs/smpplogins.txt /etc/kannel/smpplogins.txt

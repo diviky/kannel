@@ -199,6 +199,8 @@ struct dlr_db_fields *dlr_db_fields_create(CfgGroup *grp)
    	    panic(0, "DLR: DB: directive 'field-status' is not specified!");
     if (!(ret->field_boxc = cfg_get(grp, octstr_imm("field-boxc-id"))))
    	    panic(0, "DLR: DB: directive 'field-boxc-id' is not specified!");
+    /* field-binfo is optional; if not specified, binfo is not stored/retrieved */
+    ret->field_binfo = cfg_get(grp, octstr_imm("field-binfo"));
 
     return ret;
 }
@@ -221,6 +223,7 @@ void dlr_db_fields_destroy(struct dlr_db_fields *fields)
     O_DELETE(fields->field_mask);
     O_DELETE(fields->field_status);
     O_DELETE(fields->field_boxc);
+    O_DELETE(fields->field_binfo);
 
 #undef O_DELETE
 

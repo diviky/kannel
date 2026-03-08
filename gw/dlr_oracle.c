@@ -58,7 +58,7 @@
  * dlr_oracle.c - Oracle dlr storage implementation.
  *
  * Author: Alexander Malysh <a.malysh@centrium.de>, (C) 2003
- * Robert Ga≥ach <robert.galach@my.tenbit.pl>
+ * Robert Gaùach <robert.galach@my.tenbit.pl>
  *      2004 Rewrited sql queries to use binding variables.
  *
  * Copyright: See COPYING file that comes with this distribution
@@ -138,12 +138,21 @@ static void dlr_add_oracle(struct dlr_entry *entry)
         return;
     }
 
-    sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
-                        "(:1, :2, :3, :4, :5, :6, :7, :8, 0)",
-                        fields->table, fields->field_smsc, fields->field_ts,
-                        fields->field_src, fields->field_dst, fields->field_serv, 
-                        fields->field_url, fields->field_mask, fields->field_boxc,
-                        fields->field_status);
+    if (fields->field_binfo) {
+        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
+                            "(:1, :2, :3, :4, :5, :6, :7, :8, :9, 0)",
+                            fields->table, fields->field_smsc, fields->field_ts,
+                            fields->field_src, fields->field_dst, fields->field_serv,
+                            fields->field_url, fields->field_mask, fields->field_boxc,
+                            fields->field_binfo, fields->field_status);
+    } else {
+        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
+                            "(:1, :2, :3, :4, :5, :6, :7, :8, 0)",
+                            fields->table, fields->field_smsc, fields->field_ts,
+                            fields->field_src, fields->field_dst, fields->field_serv,
+                            fields->field_url, fields->field_mask, fields->field_boxc,
+                            fields->field_status);
+    }
     os_mask = octstr_format("%d", entry->mask);
     
     gwlist_append(binds, entry->smsc);         /* :1 */
@@ -154,6 +163,8 @@ static void dlr_add_oracle(struct dlr_entry *entry)
     gwlist_append(binds, entry->url);          /* :6 */
     gwlist_append(binds, os_mask);             /* :7 */
     gwlist_append(binds, entry->boxc_id);      /* :8 */
+    if (fields->field_binfo)
+        gwlist_append(binds, entry->binfo);    /* :9 */
 #if defined(DLR_TRACE)
     debug("dlr.oracle", 0, "sql: %s", octstr_get_cstr(sql));
 #endif
@@ -230,12 +241,21 @@ static struct dlr_entry* dlr_get_oracle(const Octstr *smsc, const Octstr *ts, co
     else
         like = octstr_imm("");
 
-    sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S=:1 AND %S=:2 %S AND ROWNUM < 2",
-                        fields->field_mask, fields->field_serv,
-                        fields->field_url, fields->field_src,
-                        fields->field_dst, fields->field_boxc,
-                        fields->table, fields->field_smsc,
-                        fields->field_ts, like);
+    if (fields->field_binfo) {
+        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S, %S FROM %S WHERE %S=:1 AND %S=:2 %S AND ROWNUM < 2",
+                            fields->field_mask, fields->field_serv,
+                            fields->field_url, fields->field_src,
+                            fields->field_dst, fields->field_boxc, fields->field_binfo,
+                            fields->table, fields->field_smsc,
+                            fields->field_ts, like);
+    } else {
+        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S=:1 AND %S=:2 %S AND ROWNUM < 2",
+                            fields->field_mask, fields->field_serv,
+                            fields->field_url, fields->field_src,
+                            fields->field_dst, fields->field_boxc,
+                            fields->table, fields->field_smsc,
+                            fields->field_ts, like);
+    }
 
     gwlist_append(binds, (Octstr *)smsc);      /* :1 */
     gwlist_append(binds, (Octstr *)ts);        /* :2 */
@@ -268,6 +288,11 @@ static struct dlr_entry* dlr_get_oracle(const Octstr *smsc, const Octstr *ts, co
         res->source = octstr_create(LO2CSTR(row, 3));
         res->destination = octstr_create(LO2CSTR(row, 4));
         res->boxc_id = octstr_create(LO2CSTR(row, 5));
+        if (fields->field_binfo && gwlist_len(row) > 6) {
+            res->binfo = octstr_create(LO2CSTR(row, 6));
+        } else {
+            res->binfo = octstr_create("");
+        }
         gwlist_destroy(row, octstr_destroy_item);
         res->smsc = octstr_duplicate(smsc);
     }
