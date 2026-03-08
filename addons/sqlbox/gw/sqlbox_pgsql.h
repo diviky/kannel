@@ -9,7 +9,7 @@ msgdata TEXT NULL, time BIGINT NULL, smsc_id VARCHAR(255) NULL, \
 service VARCHAR(255) NULL, account VARCHAR(255) NULL, id BIGINT NULL, \
 sms_type BIGINT NULL, mclass BIGINT NULL, mwi BIGINT NULL, coding BIGINT NULL, \
 compress BIGINT NULL, validity BIGINT NULL, deferred BIGINT NULL, \
-dlr_mask BIGINT NULL, dlr_url VARCHAR(255) NULL, pid BIGINT NULL, \
+dlr_mask BIGINT NULL, dlr_url TEXT NULL, pid BIGINT NULL, \
 alt_dcs BIGINT NULL, rpi BIGINT NULL, charset VARCHAR(255) NULL, \
 boxc_id VARCHAR(255) NULL, binfo VARCHAR(255) NULL, meta_data TEXT NULL, foreign_id VARCHAR(255) NULL)"
 
@@ -20,7 +20,7 @@ msgdata TEXT NULL, time BIGINT NULL, smsc_id VARCHAR(255) NULL, \
 service VARCHAR(255) NULL, account VARCHAR(255) NULL, id BIGINT NULL, \
 sms_type BIGINT NULL, mclass BIGINT NULL, mwi BIGINT NULL, coding BIGINT NULL, \
 compress BIGINT NULL, validity BIGINT NULL, deferred BIGINT NULL, \
-dlr_mask BIGINT NULL, dlr_url VARCHAR(255) NULL, pid BIGINT NULL, \
+dlr_mask BIGINT NULL, dlr_url TEXT NULL, pid BIGINT NULL, \
 alt_dcs BIGINT NULL, rpi BIGINT NULL, charset VARCHAR(255) NULL, \
 boxc_id VARCHAR(255) NULL, binfo VARCHAR(255) NULL, meta_data TEXT NULL, foreign_id VARCHAR(255) NULL)"
 

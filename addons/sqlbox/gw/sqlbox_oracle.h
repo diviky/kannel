@@ -8,7 +8,7 @@
 \"smsc_id\" VARCHAR2(255) NULL, \"service\" VARCHAR2(255) NULL, \"account\" VARCHAR2(255) NULL, \
 \"id\" INTEGER NULL, \"sms_type\" INTEGER NULL, \"mclass\" INTEGER NULL, \"mwi\" INTEGER NULL, \
 \"coding\" INTEGER NULL, \"compress\" INTEGER NULL, \"validity\" INTEGER NULL, \"deferred\" INTEGER NULL, \
-\"dlr_mask\" INTEGER NULL, \"dlr_url\" VARCHAR2(255) NULL, \"pid\" INTEGER NULL, \"alt_dcs\" INTEGER NULL, \
+\"dlr_mask\" INTEGER NULL, \"dlr_url\" CLOB NULL, \"pid\" INTEGER NULL, \"alt_dcs\" INTEGER NULL, \
 \"rpi\" INTEGER NULL, \"charset\" VARCHAR2(255) NULL, \"boxc_id\" VARCHAR2(255) NULL, \
 \"binfo\" VARCHAR2(255) NULL, \"meta_data\" VARCHAR2(4000) NULL, \"foreign_id\" VARCHAR2(255) NULL, \
 CONSTRAINT c_%S_momt CHECK ( \"momt\" IN ( 'MO', 'MT', 'DLR', NULL)))"
@@ -19,7 +19,7 @@ CONSTRAINT c_%S_momt CHECK ( \"momt\" IN ( 'MO', 'MT', 'DLR', NULL)))"
 \"smsc_id\" VARCHAR2(255) NULL, \"service\" VARCHAR2(255) NULL, \"account\" VARCHAR2(255) NULL, \
 \"id\" INTEGER NULL, \"sms_type\" INTEGER NULL, \"mclass\" INTEGER NULL, \"mwi\" INTEGER NULL, \
 \"coding\" INTEGER NULL, \"compress\" INTEGER NULL, \"validity\" INTEGER NULL, \"deferred\" INTEGER NULL, \
-\"dlr_mask\" INTEGER NULL, \"dlr_url\" VARCHAR2(255) NULL, \"pid\" INTEGER NULL, \"alt_dcs\" INTEGER NULL, \
+\"dlr_mask\" INTEGER NULL, \"dlr_url\" CLOB NULL, \"pid\" INTEGER NULL, \"alt_dcs\" INTEGER NULL, \
 \"rpi\" INTEGER NULL, \"charset\" VARCHAR2(255) NULL, \"boxc_id\" VARCHAR2(255) NULL, \
 \"binfo\" VARCHAR2(255) NULL, \"meta_data\" VARCHAR2(4000) NULL, \"foreign_id\" VARCHAR2(255) NULL, \
 CONSTRAINT c_%S_momt CHECK ( \"momt\" IN ( 'MO', 'MT', NULL)))"

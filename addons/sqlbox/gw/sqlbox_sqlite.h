@@ -8,7 +8,7 @@ receiver VARCHAR(20) NULL, udhdata BLOB NULL, msgdata TEXT NULL, time BIGINT(20)
 smsc_id VARCHAR(255) NULL, service VARCHAR(255) NULL, account VARCHAR(255) NULL, \
 id BIGINT(20) NULL, sms_type BIGINT(20) NULL, mclass BIGINT(20) NULL, mwi BIGINT(20) NULL, \
 coding BIGINT(20) NULL, compress BIGINT(20) NULL, validity BIGINT(20) NULL, \
-deferred BIGINT(20) NULL, dlr_mask BIGINT(20) NULL, dlr_url VARCHAR(255) NULL, \
+deferred BIGINT(20) NULL, dlr_mask BIGINT(20) NULL, dlr_url TEXT NULL, \
 pid BIGINT(20) NULL, alt_dcs BIGINT(20) NULL, rpi BIGINT(20) NULL, charset VARCHAR(255) NULL, \
 boxc_id VARCHAR(255) NULL, binfo VARCHAR(255) NULL, meta_data TEXT NULL, foreign_id VARCHAR(255) NULL)"
 
@@ -18,7 +18,7 @@ receiver VARCHAR(20) NULL, udhdata BLOB NULL, msgdata TEXT NULL, time BIGINT(20)
 smsc_id VARCHAR(255) NULL, service VARCHAR(255) NULL, account VARCHAR(255) NULL, \
 id BIGINT(20) NULL, sms_type BIGINT(20) NULL, mclass BIGINT(20) NULL, mwi BIGINT(20) NULL, \
 coding BIGINT(20) NULL, compress BIGINT(20) NULL, validity BIGINT(20) NULL, \
-deferred BIGINT(20) NULL, dlr_mask BIGINT(20) NULL, dlr_url VARCHAR(255) NULL, \
+deferred BIGINT(20) NULL, dlr_mask BIGINT(20) NULL, dlr_url TEXT NULL, \
 pid BIGINT(20) NULL, alt_dcs BIGINT(20) NULL, rpi BIGINT(20) NULL, charset VARCHAR(255) NULL, \
 boxc_id VARCHAR(255) NULL, binfo VARCHAR(255) NULL, meta_data TEXT NULL, foreign_id VARCHAR(255) NULL)"
 
