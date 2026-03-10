@@ -1154,7 +1154,11 @@ int __px2__notifySmsDeliveryReceipt (
     if (dlrmsg != NULL) {
 
         dlrmsg->sms.sms_type = report_mo;
-        dlrmsg->sms.account = octstr_duplicate(conndata->username);
+        if (dlrmsg->sms.account == NULL || octstr_len(dlrmsg->sms.account) == 0) {
+            if (dlrmsg->sms.account != NULL)
+                octstr_destroy(dlrmsg->sms.account);
+            dlrmsg->sms.account = octstr_duplicate(conndata->username);
+        }
 
         /* 
          * There is no response values returned.

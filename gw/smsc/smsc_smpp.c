@@ -1687,7 +1687,11 @@ static Msg *handle_dlr(SMPP *smpp, Octstr *destination_addr, Octstr *short_messa
          */
         dlrmsg->sms.msgdata = octstr_duplicate(respstr);
         dlrmsg->sms.sms_type = report_mo;
-        dlrmsg->sms.account = octstr_duplicate(smpp->username);
+        if (dlrmsg->sms.account == NULL || octstr_len(dlrmsg->sms.account) == 0) {
+            if (dlrmsg->sms.account != NULL)
+                octstr_destroy(dlrmsg->sms.account);
+            dlrmsg->sms.account = octstr_duplicate(smpp->username);
+        }
         if (network_err != NULL) {
             if (dlrmsg->sms.meta_data == NULL) {
                 dlrmsg->sms.meta_data = octstr_create("");

@@ -529,6 +529,7 @@ Msg* create_dlr_from_msg(const Octstr *smsc, const Msg *msg, const Octstr *reply
     dlrmsg->sms.msgdata = octstr_duplicate(reply);
     dlrmsg->sms.boxc_id = octstr_duplicate(msg->sms.boxc_id);
     dlrmsg->sms.binfo = (msg->sms.binfo ? octstr_duplicate(msg->sms.binfo) : octstr_create(""));
+    dlrmsg->sms.account = (msg->sms.account ? octstr_duplicate(msg->sms.account) : octstr_create(""));
     dlrmsg->sms.foreign_id = octstr_duplicate(msg->sms.foreign_id);
     time(&dlrmsg->sms.time);
     dlrmsg->sms.meta_data = octstr_duplicate(msg->sms.meta_data);
