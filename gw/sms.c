@@ -350,15 +350,6 @@ List *sms_split(Msg *orig, Octstr *header, Octstr *footer,
         msgno++;
         part = msg_duplicate(orig);
 
-        /* 
-         * if its a DLR request message getting split, 
-         * only ask DLR for the first one 
-         */
-        if ((msgno > 1) && DLR_IS_ENABLED(part->sms.dlr_mask)) {
-            octstr_destroy(part->sms.dlr_url);
-            part->sms.dlr_url = NULL;
-            part->sms.dlr_mask = 0;
-        }
         octstr_destroy(part->sms.msgdata);
         if (sms_msgdata_len(temp) <= max_part_len || msgno == max_messages)
             last = 1;
