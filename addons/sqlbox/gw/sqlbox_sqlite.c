@@ -156,6 +156,7 @@ Msg *sqlite_fetch_msg()
             msg->sms.charset    = octstr_null_create(row[23]);
             msg->sms.binfo      = octstr_null_create(row[25]);
             msg->sms.meta_data  = octstr_null_create(row[26]);
+            msg->sms.log_data   = octstr_null_create(row[27]);
             if (row[24] == NULL) {
                 msg->sms.boxc_id= octstr_duplicate(sqlbox_id);
             } else {
@@ -223,7 +224,8 @@ void sqlite_save_msg(Msg *msg, Octstr *momt /*, Octstr smsbox_id */)
         st_num(msg->sms.mclass), st_num(msg->sms.mwi), st_num(msg->sms.coding), st_num(msg->sms.compress),
         st_num(msg->sms.validity), st_num(msg->sms.deferred), st_num(msg->sms.dlr_mask), st_str(msg->sms.dlr_url),
         st_num(msg->sms.pid), st_num(msg->sms.alt_dcs), st_num(msg->sms.rpi), st_str(msg->sms.charset),
-        st_str(msg->sms.boxc_id), st_str(msg->sms.binfo), st_str(msg->sms.meta_data), st_str(msg->sms.foreign_id));
+        st_str(msg->sms.boxc_id), st_str(msg->sms.binfo), st_str(msg->sms.meta_data), st_str(msg->sms.foreign_id),
+        st_str(msg->sms.log_data));
     sql_update(pc, sql);
     while (stuffcount > 0) {
         octstr_destroy(stuffer[--stuffcount]);

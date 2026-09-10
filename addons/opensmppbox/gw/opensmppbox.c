@@ -127,6 +127,7 @@ static Octstr *our_system_id;
 static Octstr *route_to_smsc;
 static time_t smpp_timeout;
 static Octstr *alt_charset;
+static Octstr *log_data_tlv;
 
 static int systemidisboxcid;
 static int enablepam;
@@ -1092,6 +1093,29 @@ static List *msg_to_pdu(Boxc *box, Msg *msg)
 }
 
 /*
+ * Extract the log-only metadata TLV (configured via 'log-data-tlv') from
+ * the message's SMPP meta-data group into msg->sms.log_data and remove it
+ * from the meta-data, so it is never re-exported as a TLV towards the
+ * operator SMSC.
+ */
+static void extract_log_data(Msg *msg)
+{
+    Octstr *val;
+
+    if (log_data_tlv == NULL || msg->sms.meta_data == NULL)
+        return;
+
+    val = meta_data_get_value(msg->sms.meta_data, "smpp", log_data_tlv);
+    if (val == NULL)
+        return;
+
+    octstr_destroy(msg->sms.log_data);
+    msg->sms.log_data = val;
+    meta_data_remove_value(msg->sms.meta_data, "smpp", log_data_tlv);
+}
+
+
+/*
  * Convert SMPP PDU to internal Msgs structure.
  * Return the Msg if all was fine and NULL otherwise, while getting 
  * the failing reason delivered back in *reason.
@@ -1270,6 +1294,7 @@ static Msg *pdu_to_msg(Boxc *box, SMPP_PDU *pdu, long *reason)
     	if (msg->sms.meta_data == NULL)
         	msg->sms.meta_data = octstr_create("");
     	meta_data_set_values(msg->sms.meta_data, pdu->u.submit_sm.tlv, "smpp", 1);
+    	extract_log_data(msg);
     }
 
     msg->sms.time = time(NULL);
@@ -1436,6 +1461,7 @@ static Msg *data_sm_to_msg(Boxc *box, SMPP_PDU *pdu, long *reason)
     	if (msg->sms.meta_data == NULL)
         	msg->sms.meta_data = octstr_create("");
     	meta_data_set_values(msg->sms.meta_data, pdu->u.data_sm.tlv, "smpp", 1);
+    	extract_log_data(msg);
     }
 
     msg->sms.time = time(NULL);
@@ -2490,6 +2516,7 @@ static void init_smppbox(Cfg *cfg)
 		panic(0, "our-system-id is not set.");
 	}
 	alt_charset = cfg_get(grp, octstr_imm("alt-charset"));
+	log_data_tlv = cfg_get(grp, octstr_imm("log-data-tlv"));
 
 	/* setup logfile stuff */
 	logfile = cfg_get(grp, octstr_imm("log-file"));

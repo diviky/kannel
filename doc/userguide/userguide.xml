@@ -1680,7 +1680,9 @@ admin-password = f00bar
      <entry valign="bottom">
         Set maximum size of outgoing message queue. After number of messages
         has hit this value, Kannel began to discard them.
-        The default value, 1 million, works for most installations.
+        The default is unlimited (no limit on the outgoing queue). Set a
+        positive value to enforce a limit; a negative value also means
+        unlimited.
      </entry></row>
 
      <row><entry><literal>round-robin-by-account</literal></entry>

@@ -184,6 +184,10 @@ static void dlr_redis_add(struct dlr_entry *entry)
         gwlist_append(binds, fields->field_binfo);
         gwlist_append(binds, entry->binfo);
     }
+    if (fields->field_log_data) {
+        gwlist_append(binds, fields->field_log_data);
+        gwlist_append(binds, entry->log_data);
+    }
     gwlist_append(binds, fields->field_status);
     gwlist_append(binds, octstr_imm("0"));
 
@@ -236,6 +240,7 @@ static struct dlr_entry *dlr_redis_get(const Octstr *smsc, const Octstr *ts, con
     List *binds = gwlist_create();
     List *result = NULL, *row;
     struct dlr_entry *res = NULL;
+    int i;
 
     pconn = dbpool_conn_consume(pool);
     if (pconn == NULL) {
@@ -265,6 +270,8 @@ static struct dlr_entry *dlr_redis_get(const Octstr *smsc, const Octstr *ts, con
     gwlist_append(binds, fields->field_boxc);
     if (fields->field_binfo)
         gwlist_append(binds, fields->field_binfo);
+    if (fields->field_log_data)
+        gwlist_append(binds, fields->field_log_data);
 
     if (dbpool_conn_select(pconn, sql, binds, &result) != 0) {
         error(0, "DLR: REDIS: Failed to fetch DLR for %s", octstr_get_cstr(key));
@@ -301,12 +308,23 @@ static struct dlr_entry *dlr_redis_get(const Octstr *smsc, const Octstr *ts, con
             get_octstr_value(&res->source, row, 3);
             get_octstr_value(&res->destination, row, 4);
             get_octstr_value(&res->boxc_id, row, 5);
-            if (fields->field_binfo && gwlist_len(row) > 6) {
-                get_octstr_value(&res->binfo, row, 6);
+            i = 6;
+            if (fields->field_binfo && gwlist_len(row) > i) {
+                get_octstr_value(&res->binfo, row, i);
                 if (res->binfo == NULL)
                     res->binfo = octstr_create("");
+                i++;
             } else {
                 res->binfo = octstr_create("");
+                if (fields->field_binfo)
+                    i++;
+            }
+            if (fields->field_log_data && gwlist_len(row) > i) {
+                get_octstr_value(&res->log_data, row, i);
+                if (res->log_data == NULL)
+                    res->log_data = octstr_create("");
+            } else {
+                res->log_data = octstr_create("");
             }
             res->smsc = octstr_duplicate(smsc);
         }
@@ -519,6 +537,8 @@ struct dlr_storage *dlr_init_redis(Cfg *cfg)
     octstr_replace(fields->field_boxc, octstr_imm("`"), octstr_imm("``"));
     if (fields->field_binfo)
         octstr_replace(fields->field_binfo, octstr_imm("`"), octstr_imm("``"));
+    if (fields->field_log_data)
+        octstr_replace(fields->field_log_data, octstr_imm("`"), octstr_imm("``"));
 
     /*
      * Now grab the required information from the 'redis-connection' group

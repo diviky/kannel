@@ -607,6 +607,7 @@ Msg* redis_create_msg(json_t* jsonmsg)
     msg->sms.binfo = json_get_octstr(jsonmsg, "binfo");
     msg->sms.priority = json_get_long(jsonmsg, "priority");
     msg->sms.meta_data = json_get_octstr(jsonmsg, "meta_data");
+    msg->sms.log_data = json_get_octstr(jsonmsg, "log_data");
 
     boxc_val = json_get_octstr(jsonmsg, "boxc_id");
     if (octstr_len(boxc_val) == 0 && boxc_id != NULL) {
@@ -698,6 +699,7 @@ Octstr* redis_save_msg_create(Msg* msg, Octstr* momt)
     json_set_str(msgjson, "binfo", msg->sms.binfo);
     json_set_long(msgjson, "priority", msg->sms.priority);
     json_set_str(msgjson, "meta_data", msg->sms.meta_data);
+    json_set_str(msgjson, "log_data", msg->sms.log_data);
 
     root = json_object();
     json_object_set(root, "msg", msgjson);

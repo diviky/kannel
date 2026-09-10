@@ -388,6 +388,7 @@ static void dlr_spool_add(struct dlr_entry *dlr)
 	MAP(msg->sms.dlr_url, dlr->url);
 	MAP(msg->sms.boxc_id, dlr->boxc_id);
 	MAP(msg->sms.binfo, dlr->binfo);
+	MAP(msg->sms.log_data, dlr->log_data);
 	msg->sms.dlr_mask = dlr->mask;
 
 	/* we got all values, destroy the structure now */
@@ -512,6 +513,7 @@ static struct dlr_entry *dlr_spool_get(const Octstr *smsc, const Octstr *ts, con
 	MAP(ret->url, msg->sms.dlr_url);
 	MAP(ret->boxc_id, msg->sms.boxc_id);
 	MAP(ret->binfo, msg->sms.binfo);
+	MAP(ret->log_data, msg->sms.log_data);
 	ret->mask = msg->sms.dlr_mask;
 
 	msg_destroy(msg);

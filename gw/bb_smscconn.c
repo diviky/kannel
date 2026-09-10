@@ -1855,8 +1855,8 @@ long smsc2_rout(Msg *msg, int resend)
     			bad_found = 1;
     			continue;
     		}
-    		/* check queue length */
-    		if (stat.queued > max_queue) {
+    		/* check queue length (negative limit means unlimited) */
+    		if (max_outgoing_sms_qlength >= 0 && stat.queued > max_queue) {
     			full_found = 1;
     			continue;
     		}

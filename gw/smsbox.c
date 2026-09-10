@@ -550,7 +550,8 @@ static void get_x_kannel_from_headers(List *headers, Octstr **from,
 				      int *validity, int *deferred,
 				      int *dlr_mask, Octstr **dlr_url, 
 				      Octstr **account, int *pid, int *alt_dcs, 
-				      int *rpi, Octstr **binfo, int *priority, Octstr **meta_data)
+				      int *rpi, Octstr **binfo, int *priority, Octstr **meta_data,
+				      Octstr **log_data)
 {
     Octstr *name, *val;
     long l;
@@ -644,6 +645,10 @@ static void get_x_kannel_from_headers(List *headers, Octstr **from,
             *meta_data = octstr_duplicate(val);
             octstr_strip_blanks(*meta_data);
         }
+        else if (octstr_case_compare(name, octstr_imm("X-Kannel-Log-Data")) == 0) {
+            *log_data = octstr_duplicate(val);
+            octstr_strip_blanks(*log_data);
+        }
 	octstr_destroy(name);
 	octstr_destroy(val);
     }
@@ -662,7 +667,8 @@ static void get_x_kannel_from_xml(int requesttype , Octstr **type, Octstr **body
                                   int *dlr_mask, Octstr **dlr_url,
                                   Octstr **account, int *pid, int *alt_dcs,
                                   int *rpi, List **tolist, Octstr **charset,
-                                  Octstr **binfo, int *priority, Octstr **meta_data)
+                                  Octstr **binfo, int *priority, Octstr **meta_data,
+                                  Octstr **log_data)
 {                                    
     xmlDocPtr doc = NULL;
     xmlXPathContextPtr xpathCtx = NULL;
@@ -799,6 +805,9 @@ static void get_x_kannel_from_xml(int requesttype , Octstr **type, Octstr **body
 
     /* meta_data */
     XPATH_SEARCH_OCTSTR("/message/submit/meta-data", *meta_data, 0);
+
+    /* log_data */
+    XPATH_SEARCH_OCTSTR("/message/submit/log-data", *log_data, 0);
     
     /* charset from <?xml...encoding=?> */
     O_DESTROY(*charset);
@@ -843,7 +852,8 @@ static void fill_message(Msg *msg, URLTranslation *trans,
 			 int validity, int deferred,
 			 Octstr *dlr_url, int dlr_mask, int pid, int alt_dcs,
 			 int rpi, Octstr *smsc, Octstr *account,
-			 Octstr *charset, Octstr *binfo, int priority, Octstr *meta_data)
+			 Octstr *charset, Octstr *binfo, int priority, Octstr *meta_data,
+			 Octstr *log_data)
 {
     msg->sms.msgdata = replytext;
     msg->sms.time = time(NULL);
@@ -1002,6 +1012,15 @@ static void fill_message(Msg *msg, URLTranslation *trans,
             octstr_destroy(meta_data);
         }
     }
+    if (log_data != NULL) {
+        if (urltrans_accept_x_kannel_headers(trans)) {
+            octstr_destroy(msg->sms.log_data);
+            msg->sms.log_data = log_data;
+        } else {
+            warning(0, "Tried to set Log-Data field, denied.");
+            octstr_destroy(log_data);
+        }
+    }
 }
 
 
@@ -1079,6 +1098,7 @@ static void url_result_thread(void *arg)
 
     Octstr *reply_body, *charset, *alt_charset;
     Octstr *udh, *from, *to, *dlr_url, *account, *smsc, *binfo, *meta_data;
+    Octstr *log_data;
     int dlr_mask, mclass, mwi, coding, compress, pid, alt_dcs, rpi;
     int validity, deferred, priority;
 
@@ -1096,7 +1116,7 @@ static void url_result_thread(void *arg)
             break;
 
         from = to = udh = smsc = dlr_url = account = binfo = charset
-        		= alt_charset = meta_data = NULL;
+        		= alt_charset = meta_data = log_data = NULL;
         mclass = mwi = compress = pid = alt_dcs = rpi = dlr_mask =
         		validity = deferred = priority = SMS_PARAM_UNDEFINED;
         coding = DC_7BIT;
@@ -1123,7 +1143,8 @@ static void url_result_thread(void *arg)
                 						  &coding, &compress, &validity,
                 						  &deferred, &dlr_mask, &dlr_url,
                 						  &account, &pid, &alt_dcs, &rpi,
-                						  &binfo, &priority, &meta_data);
+                						  &binfo, &priority, &meta_data,
+                						  &log_data);
             } else if (octstr_case_compare(type, text_plain) == 0) {
                 replytext = octstr_duplicate(reply_body);
                 octstr_destroy(reply_body);
@@ -1133,7 +1154,8 @@ static void url_result_thread(void *arg)
                 		                  &coding, &compress, &validity,
                 						  &deferred, &dlr_mask, &dlr_url,
                 						  &account, &pid, &alt_dcs, &rpi,
-                						  &binfo, &priority, &meta_data);
+                						  &binfo, &priority, &meta_data,
+                						  &log_data);
             } else if (octstr_case_compare(type, text_xml) == 0) {
                 replytext = octstr_duplicate(reply_body);
                 octstr_destroy(reply_body);
@@ -1142,7 +1164,7 @@ static void url_result_thread(void *arg)
                 					  &from, &to, &udh, NULL, NULL, &smsc, &mclass, &mwi,
                                       &coding, &compress, &validity, &deferred, &dlr_mask,
                                       &dlr_url, &account, &pid, &alt_dcs, &rpi, NULL, &charset,
-                                      &binfo, &priority, &meta_data);
+                                      &binfo, &priority, &meta_data, &log_data);
             } else if (octstr_case_compare(type, octet_stream) == 0) {
                 replytext = octstr_duplicate(reply_body);
                 octstr_destroy(reply_body);
@@ -1153,7 +1175,8 @@ static void url_result_thread(void *arg)
                 						  &coding, &compress, &validity,
                 						  &deferred, &dlr_mask, &dlr_url,
                 						  &account, &pid, &alt_dcs, &rpi,
-                						  &binfo, &priority, &meta_data);
+                						  &binfo, &priority, &meta_data,
+                						  &log_data);
             } else {
                 replytext = octstr_duplicate(reply_couldnotrepresent);
             }
@@ -1196,13 +1219,14 @@ static void url_result_thread(void *arg)
             fill_message(msg, trans, replytext, from, to, udh, mclass,
                          mwi, coding, compress, validity, deferred, dlr_url,
                          dlr_mask, pid, alt_dcs, rpi, smsc, account, charset,
-                         binfo, priority, meta_data);
+                         binfo, priority, meta_data, log_data);
 
-            alog("SMS HTTP-request sender:%s request: '%s' url: '%s' reply: %d '%s'",
+            alog("SMS HTTP-request sender:%s request: '%s' url: '%s' reply: %d '%s' [LOGDATA:%s]",
                  octstr_get_cstr(msg->sms.receiver),
                  (msg->sms.msgdata != NULL) ? octstr_get_cstr(msg->sms.msgdata) : "",
                  octstr_get_cstr(final_url), status,
-                 (status == HTTP_OK) ? "<< successful >>" : octstr_get_cstr(reply_body));
+                 (status == HTTP_OK) ? "<< successful >>" : octstr_get_cstr(reply_body),
+                 (msg->sms.log_data != NULL) ? octstr_get_cstr(msg->sms.log_data) : "");
         } else {
             octstr_destroy(replytext);
         }
@@ -1970,7 +1994,8 @@ static Octstr *smsbox_req_handle(URLTranslation *t, Octstr *client_ip,
 				 int validity, int deferred,
 				 int *status, int dlr_mask, Octstr *dlr_url, 
 				 Octstr *account, int pid, int alt_dcs, int rpi,
-				 List *receiver, Octstr *binfo, int priority, Octstr *meta_data)
+				 List *receiver, Octstr *binfo, int priority, Octstr *meta_data,
+				 Octstr *log_data)
 {				     
     Msg *msg = NULL;
     Octstr *newfrom = NULL;
@@ -2338,6 +2363,7 @@ static Octstr *smsbox_req_handle(URLTranslation *t, Octstr *client_ip,
     }
 
     msg->sms.meta_data = octstr_duplicate(meta_data);
+    msg->sms.log_data = octstr_duplicate(log_data);
 
     msg->sms.receiver = NULL;
 
@@ -2368,11 +2394,12 @@ static Octstr *smsbox_req_handle(URLTranslation *t, Octstr *client_ip,
             gwlist_append(failed_id, receiv);
         } else {
             /* log the sending as successful for this particular message */
-            alog("send-SMS request added - sender:%s:%s %s target:%s request: '%s'",
+            alog("send-SMS request added - sender:%s:%s %s target:%s request: '%s' [LOGDATA:%s]",
 	             octstr_get_cstr(urltrans_username(t)),
                  octstr_get_cstr(newfrom), octstr_get_cstr(client_ip),
 	             octstr_get_cstr(receiv),
-	             udh == NULL ? ( text == NULL ? "" : octstr_get_cstr(text) ) : "<< UDH >>");
+	             udh == NULL ? ( text == NULL ? "" : octstr_get_cstr(text) ) : "<< UDH >>",
+	             msg->sms.log_data ? octstr_get_cstr(msg->sms.log_data) : "");
         }
     }
 
@@ -2413,7 +2440,8 @@ cleanup:
     
 
 field_error:
-    alog("send-SMS request failed - %s", octstr_get_cstr(returnerror));
+    alog("send-SMS request failed - %s [LOGDATA:%s]", octstr_get_cstr(returnerror),
+         log_data ? octstr_get_cstr(log_data) : "");
     *status = HTTP_BAD_REQUEST;
 
     goto cleanup;
@@ -2520,11 +2548,11 @@ static Octstr *smsbox_req_sendsms(List *args, Octstr *client_ip, int *status,
     URLTranslation *t = NULL;
     Octstr *tmp_string;
     Octstr *from, *to, *charset, *text, *udh, *smsc, *dlr_url, *account;
-    Octstr *binfo, *meta_data;
+    Octstr *binfo, *meta_data, *log_data;
     int	dlr_mask, mclass, mwi, coding, compress, validity, deferred, pid;
     int alt_dcs, rpi, priority;
 
-    from = to = udh = text = smsc = account = dlr_url = charset = binfo = meta_data = NULL;
+    from = to = udh = text = smsc = account = dlr_url = charset = binfo = meta_data = log_data = NULL;
     mclass = mwi = coding = compress = validity = deferred = dlr_mask = 
         pid = alt_dcs = rpi = priority = SMS_PARAM_UNDEFINED;
  
@@ -2600,6 +2628,8 @@ static Octstr *smsbox_req_sendsms(List *args, Octstr *client_ip, int *status,
     
     meta_data = http_cgi_variable(args, "meta-data");
 
+    log_data = http_cgi_variable(args, "log-data");
+
     /*
      * we required "to" to be defined
      */
@@ -2618,7 +2648,8 @@ static Octstr *smsbox_req_sendsms(List *args, Octstr *client_ip, int *status,
     return smsbox_req_handle(t, client_ip, client, from, to, text, charset, udh,
 			     smsc, mclass, mwi, coding, compress, validity, 
 			     deferred, status, dlr_mask, dlr_url, account,
-			     pid, alt_dcs, rpi, NULL, binfo, priority, meta_data);
+			     pid, alt_dcs, rpi, NULL, binfo, priority, meta_data,
+			     log_data);
     
 }
 
@@ -2637,6 +2668,7 @@ static Octstr *smsbox_sendsms_post(List *headers, Octstr *body,
     Octstr *text_html, *text_plain, *text_wml, *text_xml, *octet_stream;
     Octstr *text;
     Octstr *from, *to, *udh, *smsc, *charset, *dlr_url, *account, *binfo, *meta_data;
+    Octstr *log_data;
     int dlr_mask, mclass, mwi, coding, compress, validity, deferred;
     int pid, alt_dcs, rpi, priority;
  
@@ -2648,7 +2680,7 @@ static Octstr *smsbox_sendsms_post(List *headers, Octstr *body,
 
     user = pass = ret = type = NULL;
     tolist = NULL;
-    from = to = udh = smsc = account = dlr_url = charset = binfo = meta_data = NULL;
+    from = to = udh = smsc = account = dlr_url = charset = binfo = meta_data = log_data = NULL;
     mclass = mwi = coding = compress = validity = deferred = dlr_mask = 
         pid = alt_dcs = rpi = priority = SMS_PARAM_UNDEFINED;
  
@@ -2663,7 +2695,7 @@ static Octstr *smsbox_sendsms_post(List *headers, Octstr *body,
 				  &coding, &compress, &validity, 
 				  &deferred, &dlr_mask, &dlr_url, 
 				  &account, &pid, &alt_dcs, &rpi,
-				  &binfo, &priority, &meta_data);
+				  &binfo, &priority, &meta_data, &log_data);
     } else if (octstr_case_compare(type, text_plain) == 0 ||
                octstr_case_compare(type, octet_stream) == 0) {
 	get_x_kannel_from_headers(headers, &from, &to, &udh,
@@ -2671,13 +2703,14 @@ static Octstr *smsbox_sendsms_post(List *headers, Octstr *body,
 				  &coding, &compress, &validity, 
 				  &deferred, &dlr_mask, &dlr_url, 
 				  &account, &pid, &alt_dcs, &rpi,
-				  &binfo, &priority, &meta_data);
+				  &binfo, &priority, &meta_data, &log_data);
     } else if (octstr_case_compare(type, text_xml) == 0) {
 	get_x_kannel_from_xml(mt_push, &type, &body, headers, 
                               &from, &to, &udh, &user, &pass, &smsc, &mclass, 
 			      &mwi, &coding, &compress, &validity, &deferred,
 			      &dlr_mask, &dlr_url, &account, &pid, &alt_dcs,
-			      &rpi, &tolist, &charset, &binfo, &priority, &meta_data);
+			      &rpi, &tolist, &charset, &binfo, &priority, &meta_data,
+			      &log_data);
     } else {
 	*status = HTTP_BAD_REQUEST;
 	ret = octstr_create("Invalid content-type");
@@ -2722,7 +2755,7 @@ static Octstr *smsbox_sendsms_post(List *headers, Octstr *body,
 				    udh, smsc, mclass, mwi, coding, compress, 
 				    validity, deferred, status, dlr_mask, 
 				    dlr_url, account, pid, alt_dcs, rpi, tolist,
-				    binfo, priority, meta_data);
+				    binfo, priority, meta_data, log_data);
 
     }
     octstr_destroy(user);
@@ -2735,6 +2768,7 @@ static Octstr *smsbox_sendsms_post(List *headers, Octstr *body,
     octstr_destroy(account);
     octstr_destroy(binfo);
     octstr_destroy(meta_data);
+    octstr_destroy(log_data);
 error:
     octstr_destroy(type);
     octstr_destroy(charset);

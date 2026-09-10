@@ -145,7 +145,8 @@ Msg *oracle_fetch_msg()
             msg->sms.rpi        = get_oracle_long_col(22);
             msg->sms.charset    = get_oracle_octstr_col(23);
             msg->sms.binfo      = get_oracle_octstr_col(25);
-            msg->sms.binfo      = get_oracle_octstr_col(26);
+            msg->sms.meta_data  = get_oracle_octstr_col(26);
+            msg->sms.log_data   = get_oracle_octstr_col(27);
             if (gwlist_get(row,24) == NULL) {
                 msg->sms.boxc_id= octstr_duplicate(sqlbox_id);
             }
@@ -226,6 +227,7 @@ void oracle_save_msg(Msg *msg, Octstr *momt /*, Octstr smsbox_id */)
     gwlist_append(binds, st_str(msg->sms.binfo));	/* :24 */
     gwlist_append(binds, st_str(msg->sms.meta_data));	/* :25 */
     gwlist_append(binds, st_str(msg->sms.foreign_id));	/* :26 */
+    gwlist_append(binds, st_str(msg->sms.log_data));	/* :27 */
 #if defined(SQLBOX_TRACE)
      debug("SQLBOX", 0, "sql: %s", octstr_get_cstr(sql));
 #endif

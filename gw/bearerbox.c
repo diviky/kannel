@@ -568,12 +568,13 @@ static Cfg *init_bearerbox(Cfg *cfg)
                                   octstr_imm("sms-incoming-queue-limit")) == -1)
         max_incoming_sms_qlength = -1;
         
+    /* default is unlimited (-1); negative values also mean unlimited */
     if (cfg_get_integer(&max_outgoing_sms_qlength, grp,
                                   octstr_imm("sms-outgoing-queue-limit")) == -1)
         max_outgoing_sms_qlength = -1;
 
     if (max_outgoing_sms_qlength < 0)
-        max_outgoing_sms_qlength = DEFAULT_OUTGOING_SMS_QLENGTH;
+        max_outgoing_sms_qlength = -1;
 
     if (cfg_get_integer(&value, grp, octstr_imm("http-timeout")) == 0)
         http_set_client_timeout(value);

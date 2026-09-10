@@ -84,6 +84,7 @@ struct dlr_entry {
    Octstr *url;
    Octstr *boxc_id;
    Octstr *binfo;
+   Octstr *log_data;
    int mask;
    int use_dst;
 };
@@ -160,6 +161,7 @@ struct dlr_db_fields {
     Octstr *field_status;
     Octstr *field_boxc;
     Octstr *field_binfo;
+    Octstr *field_log_data;
 };
 
 struct dlr_db_fields *dlr_db_fields_create(CfgGroup *grp);

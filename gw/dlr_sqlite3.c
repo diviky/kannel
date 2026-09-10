@@ -128,6 +128,7 @@ static void dlr_add_sqlite3(struct dlr_entry *entry)
     DBPoolConn *pconn;
     List *binds = gwlist_create();
     int res;
+    int bind_num;
 
     debug("dlr.sqlite3", 0, "adding DLR entry into database");
 
@@ -138,21 +139,21 @@ static void dlr_add_sqlite3(struct dlr_entry *entry)
         return;
     }
 
-    if (fields->field_binfo) {
-        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
-                            "(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0)",
-                            fields->table, fields->field_smsc, fields->field_ts,
-                            fields->field_src, fields->field_dst, fields->field_serv,
-                            fields->field_url, fields->field_mask, fields->field_boxc,
-                            fields->field_binfo, fields->field_status);
-    } else {
-        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
-                            "(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
-                            fields->table, fields->field_smsc, fields->field_ts,
-                            fields->field_src, fields->field_dst, fields->field_serv,
-                            fields->field_url, fields->field_mask, fields->field_boxc,
-                            fields->field_status);
-    }
+    sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S",
+                        fields->table, fields->field_smsc, fields->field_ts,
+                        fields->field_src, fields->field_dst, fields->field_serv,
+                        fields->field_url, fields->field_mask, fields->field_boxc);
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", %S", fields->field_binfo);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", %S", fields->field_log_data);
+    octstr_format_append(sql, ", %S) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8", fields->field_status);
+    bind_num = 9;
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", ?%d", bind_num++);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", ?%d", bind_num++);
+    octstr_append_cstr(sql, ", 0)");
     os_mask = octstr_format("%d", entry->mask);
     
     gwlist_append(binds, entry->smsc);         /* ?1 */
@@ -165,6 +166,8 @@ static void dlr_add_sqlite3(struct dlr_entry *entry)
     gwlist_append(binds, entry->boxc_id);      /* ?8 */
     if (fields->field_binfo)
         gwlist_append(binds, entry->binfo);    /* ?9 */
+    if (fields->field_log_data)
+        gwlist_append(binds, entry->log_data); /* ?9 or ?10 */
 #if defined(DLR_TRACE)
     debug("dlr.sqlite3", 0, "sql: %s", octstr_get_cstr(sql));
 #endif
@@ -229,6 +232,7 @@ static struct dlr_entry* dlr_get_sqlite3(const Octstr *smsc, const Octstr *ts, c
     List *result = NULL, *row;
     struct dlr_entry *res = NULL;
     List *binds = gwlist_create();
+    int i;
 
     pconn = dbpool_conn_consume(pool);
     if (pconn == NULL) /* should not happens, but sure is sure */
@@ -239,21 +243,17 @@ static struct dlr_entry* dlr_get_sqlite3(const Octstr *smsc, const Octstr *ts, c
     else
         like = octstr_imm("");
 
-    if (fields->field_binfo) {
-        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S, %S FROM %S WHERE %S=?1 AND %S=?2 %S LIMIT 1",
-                            fields->field_mask, fields->field_serv,
-                            fields->field_url, fields->field_src,
-                            fields->field_dst, fields->field_boxc, fields->field_binfo,
-                            fields->table, fields->field_smsc,
-                            fields->field_ts, like);
-    } else {
-        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S=?1 AND %S=?2 %S LIMIT 1",
-                            fields->field_mask, fields->field_serv,
-                            fields->field_url, fields->field_src,
-                            fields->field_dst, fields->field_boxc,
-                            fields->table, fields->field_smsc,
-                            fields->field_ts, like);
-    }
+    sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S",
+                        fields->field_mask, fields->field_serv,
+                        fields->field_url, fields->field_src,
+                        fields->field_dst, fields->field_boxc);
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", %S", fields->field_binfo);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", %S", fields->field_log_data);
+    octstr_format_append(sql, " FROM %S WHERE %S=?1 AND %S=?2 %S LIMIT 1",
+                         fields->table, fields->field_smsc,
+                         fields->field_ts, like);
 
     gwlist_append(binds, (Octstr *)smsc);      /* ?1 */
     gwlist_append(binds, (Octstr *)ts);        /* ?2 */
@@ -285,10 +285,20 @@ static struct dlr_entry* dlr_get_sqlite3(const Octstr *smsc, const Octstr *ts, c
         res->source = octstr_create(LO2CSTR(row, 3));
         res->destination = octstr_create(LO2CSTR(row, 4));
         res->boxc_id = octstr_create(LO2CSTR(row, 5));
-        if (fields->field_binfo && gwlist_len(row) > 6) {
-            res->binfo = octstr_create(LO2CSTR(row, 6));
+        i = 6;
+        if (fields->field_binfo) {
+            if (gwlist_len(row) > i)
+                res->binfo = octstr_create(LO2CSTR(row, i));
+            else
+                res->binfo = octstr_create("");
+            i++;
         } else {
             res->binfo = octstr_create("");
+        }
+        if (fields->field_log_data && gwlist_len(row) > i) {
+            res->log_data = octstr_create(LO2CSTR(row, i));
+        } else {
+            res->log_data = octstr_create("");
         }
         gwlist_destroy(row, octstr_destroy_item);
         res->smsc = octstr_duplicate(smsc);

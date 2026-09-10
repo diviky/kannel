@@ -105,21 +105,20 @@ static void dlr_mysql_add(struct dlr_entry *entry)
         return;
     }
 
-    if (fields->field_binfo) {
-        sql = octstr_format("INSERT INTO `%S` (`%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`) VALUES "
-                            "(?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-                            fields->table, fields->field_smsc, fields->field_ts,
-                            fields->field_src, fields->field_dst, fields->field_serv,
-                            fields->field_url, fields->field_mask, fields->field_boxc,
-                            fields->field_binfo, fields->field_status);
-    } else {
-        sql = octstr_format("INSERT INTO `%S` (`%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`) VALUES "
-                            "(?, ?, ?, ?, ?, ?, ?, ?, 0)",
-                            fields->table, fields->field_smsc, fields->field_ts,
-                            fields->field_src, fields->field_dst, fields->field_serv,
-                            fields->field_url, fields->field_mask, fields->field_boxc,
-                            fields->field_status);
-    }
+    sql = octstr_format("INSERT INTO `%S` (`%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S`",
+                        fields->table, fields->field_smsc, fields->field_ts,
+                        fields->field_src, fields->field_dst, fields->field_serv,
+                        fields->field_url, fields->field_mask, fields->field_boxc);
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", `%S`", fields->field_binfo);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", `%S`", fields->field_log_data);
+    octstr_format_append(sql, ", `%S`) VALUES (?, ?, ?, ?, ?, ?, ?, ?", fields->field_status);
+    if (fields->field_binfo)
+        octstr_append_cstr(sql, ", ?");
+    if (fields->field_log_data)
+        octstr_append_cstr(sql, ", ?");
+    octstr_append_cstr(sql, ", 0)");
     os_mask = octstr_format("%d", entry->mask);
     gwlist_append(binds, entry->smsc);
     gwlist_append(binds, entry->timestamp);
@@ -131,6 +130,8 @@ static void dlr_mysql_add(struct dlr_entry *entry)
     gwlist_append(binds, entry->boxc_id);
     if (fields->field_binfo)
         gwlist_append(binds, entry->binfo);
+    if (fields->field_log_data)
+        gwlist_append(binds, entry->log_data);
 
 #if defined(DLR_TRACE)
     debug("dlr.mysql", 0, "sql: %s", octstr_get_cstr(sql));
@@ -154,6 +155,7 @@ static struct dlr_entry* dlr_mysql_get(const Octstr *smsc, const Octstr *ts, con
     List *result = NULL, *row;
     struct dlr_entry *res = NULL;
     List *binds = gwlist_create();
+    int i;
 
     pconn = dbpool_conn_consume(pool);
     if (pconn == NULL) /* should not happens, but sure is sure */
@@ -164,21 +166,17 @@ static struct dlr_entry* dlr_mysql_get(const Octstr *smsc, const Octstr *ts, con
     else
         like = octstr_imm("");
 
-    if (fields->field_binfo) {
-        sql = octstr_format("SELECT `%S`, `%S`, `%S`, `%S`, `%S`, `%S`, `%S` FROM `%S` WHERE `%S`=? AND `%S`=? %S LIMIT 1",
-                            fields->field_mask, fields->field_serv,
-                            fields->field_url, fields->field_src,
-                            fields->field_dst, fields->field_boxc, fields->field_binfo,
-                            fields->table, fields->field_smsc,
-                            fields->field_ts, like);
-    } else {
-        sql = octstr_format("SELECT `%S`, `%S`, `%S`, `%S`, `%S`, `%S` FROM `%S` WHERE `%S`=? AND `%S`=? %S LIMIT 1",
-                            fields->field_mask, fields->field_serv,
-                            fields->field_url, fields->field_src,
-                            fields->field_dst, fields->field_boxc,
-                            fields->table, fields->field_smsc,
-                            fields->field_ts, like);
-    }
+    sql = octstr_format("SELECT `%S`, `%S`, `%S`, `%S`, `%S`, `%S`",
+                        fields->field_mask, fields->field_serv,
+                        fields->field_url, fields->field_src,
+                        fields->field_dst, fields->field_boxc);
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", `%S`", fields->field_binfo);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", `%S`", fields->field_log_data);
+    octstr_format_append(sql, " FROM `%S` WHERE `%S`=? AND `%S`=? %S LIMIT 1",
+                         fields->table, fields->field_smsc,
+                         fields->field_ts, like);
 
     gwlist_append(binds, (Octstr *)smsc);
     gwlist_append(binds, (Octstr *)ts);
@@ -213,10 +211,20 @@ static struct dlr_entry* dlr_mysql_get(const Octstr *smsc, const Octstr *ts, con
         res->source = octstr_create(LO2CSTR(row, 3));
         res->destination = octstr_create(LO2CSTR(row, 4));
         res->boxc_id = octstr_create(LO2CSTR(row, 5));
-        if (fields->field_binfo && gwlist_len(row) > 6) {
-            res->binfo = octstr_create(LO2CSTR(row, 6));
+        i = 6;
+        if (fields->field_binfo) {
+            if (gwlist_len(row) > i)
+                res->binfo = octstr_create(LO2CSTR(row, i));
+            else
+                res->binfo = octstr_create("");
+            i++;
         } else {
             res->binfo = octstr_create("");
+        }
+        if (fields->field_log_data && gwlist_len(row) > i) {
+            res->log_data = octstr_create(LO2CSTR(row, i));
+        } else {
+            res->log_data = octstr_create("");
         }
         gwlist_destroy(row, octstr_destroy_item);
         res->smsc = octstr_duplicate(smsc);
@@ -424,6 +432,8 @@ struct dlr_storage *dlr_init_mysql(Cfg *cfg)
     octstr_replace(fields->field_boxc, octstr_imm("`"), octstr_imm("``"));
     if (fields->field_binfo)
         octstr_replace(fields->field_binfo, octstr_imm("`"), octstr_imm("``"));
+    if (fields->field_log_data)
+        octstr_replace(fields->field_log_data, octstr_imm("`"), octstr_imm("``"));
 
     /*
      * now grap the required information from the 'mysql-connection' group

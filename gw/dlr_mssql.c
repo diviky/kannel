@@ -61,7 +61,7 @@
  * 
  * Based on dlr_oracle.c
  * Alexander Malysh <a.malysh@centrium.de>
- * Robert Gaùach <robert.galach@my.tenbit.pl>
+ * Robert Ga?ach <robert.galach@my.tenbit.pl>
  *
  * Copyright: See COPYING file that comes with this distribution
  */
@@ -138,25 +138,23 @@ static void dlr_add_mssql(struct dlr_entry *entry)
         return;
     }
     
-    if (fields->field_binfo) {
-        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
-                    "('%S', '%S', '%S', '%S', '%S', '%S', '%d', '%S', '%S', '%d')",
-                    fields->table, fields->field_smsc, fields->field_ts, fields->field_src,
-                    fields->field_dst, fields->field_serv, fields->field_url,
-                    fields->field_mask, fields->field_boxc, fields->field_binfo,
-                    fields->field_status,
-                    entry->smsc, entry->timestamp, entry->source, entry->destination,
-                    entry->service, entry->url, entry->mask, entry->boxc_id,
-                    entry->binfo, 0);
-    } else {
-        sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S, %S) VALUES "
-                    "('%S', '%S', '%S', '%S', '%S', '%S', '%d', '%S', '%d')",
-                    fields->table, fields->field_smsc, fields->field_ts, fields->field_src,
-                    fields->field_dst, fields->field_serv, fields->field_url,
-                    fields->field_mask, fields->field_boxc, fields->field_status,
-                    entry->smsc, entry->timestamp, entry->source, entry->destination,
-                    entry->service, entry->url, entry->mask, entry->boxc_id, 0);
-    }
+    sql = octstr_format("INSERT INTO %S (%S, %S, %S, %S, %S, %S, %S, %S",
+                fields->table, fields->field_smsc, fields->field_ts, fields->field_src,
+                fields->field_dst, fields->field_serv, fields->field_url,
+                fields->field_mask, fields->field_boxc);
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", %S", fields->field_binfo);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", %S", fields->field_log_data);
+    octstr_format_append(sql, ", %S) VALUES ('%S', '%S', '%S', '%S', '%S', '%S', '%d', '%S'",
+                fields->field_status,
+                entry->smsc, entry->timestamp, entry->source, entry->destination,
+                entry->service, entry->url, entry->mask, entry->boxc_id);
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", '%S'", entry->binfo);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", '%S'", entry->log_data);
+    octstr_format_append(sql, ", '%d')", 0);
 
 #if defined(DLR_TRACE)
     debug("dlr.mssql", 0, "sql: %s", octstr_get_cstr(sql));
@@ -213,6 +211,7 @@ static struct dlr_entry* dlr_get_mssql(const Octstr *smsc, const Octstr *ts, con
     DBPoolConn *pconn;
     List *result = NULL, *row;
     struct dlr_entry *res = NULL;
+    int i;
 
     pconn = dbpool_conn_consume(pool);
     if (pconn == NULL) /* should not happens, but sure is sure */
@@ -223,19 +222,17 @@ static struct dlr_entry* dlr_get_mssql(const Octstr *smsc, const Octstr *ts, con
     else
         like = octstr_imm("");
 
-    if (fields->field_binfo) {
-        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S'"
-              " AND %S='%S' %S", fields->field_mask, fields->field_serv,
-              fields->field_url, fields->field_src, fields->field_dst,
-              fields->field_boxc, fields->field_binfo, fields->table,
-              fields->field_smsc, smsc, fields->field_ts, ts, like);
-    } else {
-        sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S FROM %S WHERE %S='%S'"
-              " AND %S='%S' %S", fields->field_mask, fields->field_serv,
-              fields->field_url, fields->field_src, fields->field_dst,
-              fields->field_boxc, fields->table, fields->field_smsc, smsc,
-              fields->field_ts, ts, like);
-    }
+    sql = octstr_format("SELECT %S, %S, %S, %S, %S, %S",
+          fields->field_mask, fields->field_serv,
+          fields->field_url, fields->field_src, fields->field_dst,
+          fields->field_boxc);
+    if (fields->field_binfo)
+        octstr_format_append(sql, ", %S", fields->field_binfo);
+    if (fields->field_log_data)
+        octstr_format_append(sql, ", %S", fields->field_log_data);
+    octstr_format_append(sql, " FROM %S WHERE %S='%S' AND %S='%S' %S",
+          fields->table, fields->field_smsc, smsc,
+          fields->field_ts, ts, like);
 
 #if defined(DLR_TRACE)
     debug("dlr.mssql", 0, "sql: %s", octstr_get_cstr(sql));
@@ -261,10 +258,20 @@ static struct dlr_entry* dlr_get_mssql(const Octstr *smsc, const Octstr *ts, con
         res->source = octstr_create(LO2CSTR(row, 3));
         res->destination = octstr_create(LO2CSTR(row, 4));
         res->boxc_id = octstr_create(LO2CSTR(row, 5));
-        if (fields->field_binfo && gwlist_len(row) > 6) {
-            res->binfo = octstr_create(LO2CSTR(row, 6));
+        i = 6;
+        if (fields->field_binfo) {
+            if (gwlist_len(row) > i)
+                res->binfo = octstr_create(LO2CSTR(row, i));
+            else
+                res->binfo = octstr_create("");
+            i++;
         } else {
             res->binfo = octstr_create("");
+        }
+        if (fields->field_log_data && gwlist_len(row) > i) {
+            res->log_data = octstr_create(LO2CSTR(row, i));
+        } else {
+            res->log_data = octstr_create("");
         }
         gwlist_destroy(row, octstr_destroy_item);
         res->smsc = octstr_duplicate(smsc);

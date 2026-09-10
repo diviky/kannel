@@ -66,8 +66,8 @@
 #include "bb_store.h"
 #include "bb_fairqueue.h"
 
-/* Default outgoing queue length */
-#define DEFAULT_OUTGOING_SMS_QLENGTH    1000000
+/* Default outgoing queue length: unlimited */
+#define DEFAULT_OUTGOING_SMS_QLENGTH    (-1)
 
 /* Fair outgoing MT queue (account round-robin when enabled) */
 extern BBFairQueue *outgoing_sms;

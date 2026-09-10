@@ -111,6 +111,7 @@ MSG(sms,
         INTEGER(resend_try)
         INTEGER(resend_time)
         OCTSTR(meta_data)
+        OCTSTR(log_data)
     })
 
 MSG(ack,

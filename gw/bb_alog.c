@@ -90,6 +90,7 @@ static Octstr *custom_log_format = NULL;
  *   %d - dlr_mask
  *   %R - dlr_url
  *   %D - meta-data
+ *   %E - log-data (log-only metadata, never sent to the SMSC)
  *   %a - the original SMS message, spaces squeezed
  *   %u - UDH data (in escaped form)
  *   %U - length of UDH data
@@ -110,7 +111,7 @@ static Octstr *custom_log_format = NULL;
  * sms-service groups.
  *
  * The default access-log-format would look like this (if access-log-clean is true):
- *   "%t %l [SMSC:%i] [SVC:%n] [ACT:%A] [BINF:%B] [FID:%F] [META:%D] [from:%p] [to:%P] \
+ *   "%t %l [SMSC:%i] [SVC:%n] [ACT:%A] [BINF:%B] [FID:%F] [META:%D] [LOGDATA:%E] [from:%p] [to:%P] \
  *    [flags:%m:%c:%M:%C:%d] [msg:%L:%b] [udh:%U:%u]"
  */
   
@@ -281,6 +282,11 @@ static Octstr *get_pattern(SMSCConn *conn, Msg *msg, const char *message)
                     octstr_append(result, msg->sms.meta_data);
                 break;
 
+            case 'E': /* log_data */
+                if (msg->sms.log_data != NULL)
+                    octstr_append(result, msg->sms.log_data);
+                break;
+
             case 'c':
                 octstr_append_decimal(result, msg->sms.coding);
                 break;
@@ -401,7 +407,7 @@ void bb_alog_sms(SMSCConn *conn, Msg *msg, const char *message)
             octstr_convert_printable(text);
         octstr_binary_to_hex(udh, 1);
 
-        alog("%s [SMSC:%s] [SVC:%s] [ACT:%s] [BINF:%s] [FID:%s] [META:%s] [from:%s] [to:%s] [flags:%ld:%ld:%ld:%ld:%ld] "
+        alog("%s [SMSC:%s] [SVC:%s] [ACT:%s] [BINF:%s] [FID:%s] [META:%s] [LOGDATA:%s] [from:%s] [to:%s] [flags:%ld:%ld:%ld:%ld:%ld] "
              "[msg:%ld:%s] [udh:%ld:%s]",
              message,
              octstr_get_cstr(cid),
@@ -410,6 +416,7 @@ void bb_alog_sms(SMSCConn *conn, Msg *msg, const char *message)
              msg->sms.binfo ? octstr_get_cstr(msg->sms.binfo) : "",
              msg->sms.foreign_id ? octstr_get_cstr(msg->sms.foreign_id) : "",
              msg->sms.meta_data ? octstr_get_cstr(msg->sms.meta_data) : "",
+             msg->sms.log_data ? octstr_get_cstr(msg->sms.log_data) : "",
              msg->sms.sender ? octstr_get_cstr(msg->sms.sender) : "",
              msg->sms.receiver ? octstr_get_cstr(msg->sms.receiver) : "",
              msg->sms.mclass, msg->sms.coding, msg->sms.mwi, msg->sms.compress,

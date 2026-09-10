@@ -132,6 +132,7 @@ struct dlr_entry *dlr_entry_duplicate(const struct dlr_entry *dlr)
     ret->url = octstr_duplicate(dlr->url);
     ret->boxc_id = octstr_duplicate(dlr->boxc_id);
     ret->binfo = (dlr->binfo ? octstr_duplicate(dlr->binfo) : octstr_create(""));
+    ret->log_data = (dlr->log_data ? octstr_duplicate(dlr->log_data) : octstr_create(""));
     ret->mask = dlr->mask;
 
     return ret;
@@ -156,6 +157,7 @@ void dlr_entry_destroy(struct dlr_entry *dlr)
     O_DELETE(dlr->url);
     O_DELETE(dlr->boxc_id);
     O_DELETE(dlr->binfo);
+    O_DELETE(dlr->log_data);
 
 #undef O_DELETE
 
@@ -201,6 +203,8 @@ struct dlr_db_fields *dlr_db_fields_create(CfgGroup *grp)
    	    panic(0, "DLR: DB: directive 'field-boxc-id' is not specified!");
     /* field-binfo is optional; if not specified, binfo is not stored/retrieved */
     ret->field_binfo = cfg_get(grp, octstr_imm("field-binfo"));
+    /* field-log-data is optional; if not specified, log_data is not stored/retrieved */
+    ret->field_log_data = cfg_get(grp, octstr_imm("field-log-data"));
 
     return ret;
 }
@@ -224,6 +228,7 @@ void dlr_db_fields_destroy(struct dlr_db_fields *fields)
     O_DELETE(fields->field_status);
     O_DELETE(fields->field_boxc);
     O_DELETE(fields->field_binfo);
+    O_DELETE(fields->field_log_data);
 
 #undef O_DELETE
 
@@ -374,6 +379,7 @@ void dlr_add(const Octstr *smsc, const Octstr *ts, Msg *msg, int use_dst)
     dlr->url = (msg->sms.dlr_url ? octstr_duplicate(msg->sms.dlr_url) : octstr_create(""));
     dlr->boxc_id = (msg->sms.boxc_id ? octstr_duplicate(msg->sms.boxc_id) : octstr_create(""));
     dlr->binfo = (msg->sms.binfo ? octstr_duplicate(msg->sms.binfo) : octstr_create(""));
+    dlr->log_data = (msg->sms.log_data ? octstr_duplicate(msg->sms.log_data) : octstr_create(""));
     dlr->mask = msg->sms.dlr_mask;
     dlr->use_dst = use_dst;
 
@@ -437,6 +443,7 @@ Msg *dlr_find(const Octstr *smsc, const Octstr *ts, const Octstr *dst, int typ, 
         /* if dlr_url was present, recode it here again */
         O_SET(msg->sms.dlr_url, dlr->url);
         O_SET(msg->sms.binfo, dlr->binfo);
+        O_SET(msg->sms.log_data, dlr->log_data);
         /* add the foreign_id */
         msg->sms.foreign_id = octstr_duplicate(ts);
         /* 
@@ -533,6 +540,7 @@ Msg* create_dlr_from_msg(const Octstr *smsc, const Msg *msg, const Octstr *reply
     dlrmsg->sms.foreign_id = octstr_duplicate(msg->sms.foreign_id);
     time(&dlrmsg->sms.time);
     dlrmsg->sms.meta_data = octstr_duplicate(msg->sms.meta_data);
+    dlrmsg->sms.log_data = octstr_duplicate(msg->sms.log_data);
 
     /* add original DLR bit-mask, as we do in dlr_find() */
     if (DLR_IS_ENABLED(msg->sms.dlr_mask)) {
